@@ -5,6 +5,8 @@ description = "Data warehouse et API de Jbel Annour Analytix"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    # Connexion à l'entrepôt PostgreSQL (le même pilote que dbt et dlt)
+    "psycopg2-binary>=2.9",
     # Lecture des variables du fichier .env, avec contrôle des types
     "pydantic-settings>=2.6",
     # Connexion aux bases SQL Server (Sage X3, JBELRH, usine)
@@ -38,3 +40,6 @@ select = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra"
+markers = [
+    "entrepot: tests sur un vrai PostgreSQL de test (dw_test), lancés par la CI",
+]

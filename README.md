@@ -399,6 +399,8 @@ git switch dev                                   # branche de travail
 copy .env.example .env                           # puis remplir .env avec vos accès
 uv sync                                          # installe Python 3.12 et les dépendances figées
 uv run python -m ingestion.verifier_connexions   # teste les sources et leurs droits
+uv run python -m infra.postgres.initialiser_entrepot --simulation   # affiche le SQL de l'entrepôt
+uv run python -m infra.postgres.initialiser_entrepot                # crée dw_dev, ses comptes et schémas
 uv run pytest                                    # lance les tests
 ```
 

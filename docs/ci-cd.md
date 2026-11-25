@@ -123,6 +123,27 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 | | Un compte qui peut écrire est **refusé par défaut**, et **toléré** seulement avec une dérogation explicite `<SOURCE>_COMPTE_ADMIN_ACCEPTE=yes` (avertissement à chaque exécution). La dérogation d'une source ne s'applique pas aux autres | L'entreprise a décidé de lire le serveur de l'usine avec le compte `sa`, en dev comme en prod. La dérogation reste visible et limitée à cette source : un compte administrateur ajouté par erreur sur Sage X3 serait refusé |
 | | Un droit d'écriture accordé **sur le schéma du dossier X3** (`BASE1`) est refusé | Dans Sage X3, un compte peut écrire dans un dossier sans être membre d'aucun rôle : le contrôle des rôles seul ne le verrait pas |
 
+| `tests/test_entrepot_plan.py` | Le script d'initialisation refuse toute base autre que `dw_dev`, `dw_prod`, `dw_test` | Le PostgreSQL du poste héberge d'autres projets (`agent_ai`, `chatbot_site`, le pilote `dw_ventes`) : une faute de frappe dans `.env` ne doit jamais les modifier |
+| | Il refuse tout rôle dont le nom ne commence pas par `analytix_` | Le script change le mot de passe des rôles qu'il gère : il ne doit jamais toucher `postgres` ni `dw_ventes` |
+| | Une relance ne recrée rien (idempotence) | On peut relancer le script après un changement de droits, sans risque |
+| | Aucun compte n'est administrateur ; l'API est en lecture seule forcée par le serveur, avec un délai maximal par requête | Une faille dans l'API ne doit permettre ni d'écrire ni de bloquer l'entrepôt avec une requête sans fin |
+| | Le groupe de lecture ne reçoit que `USAGE` et `SELECT`, et seulement sur `marts` | Les données non nettoyées (`raw`, `staging`) ne sortent jamais vers l'API ni Power BI |
+| | Les mots de passe ne s'affichent jamais et sont passés en paramètre, jamais collés dans le SQL | Ni fuite dans le terminal, ni injection SQL |
+
+#### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)
+
+La CI démarre un **PostgreSQL 16 jetable** (détruit à la fin du job), y lance le script d'initialisation **deux fois**, puis vérifie les droits réels de chaque compte (`tests/test_entrepot_acces.py`) :
+
+| Test | Pourquoi |
+|---|---|
+| Les 5 schémas existent ; le compte de chargement peut créer un schéma `raw_…` | L'ingestion crée elle-même un schéma par source |
+| L'API lit une table de `marts` **créée après** l'initialisation | Vérifie les droits par défaut : chaque table que dbt créera sera lisible sans intervention |
+| L'API ne peut ni insérer, ni créer de table | Lecture seule forcée par le serveur |
+| L'API ne peut pas lire `staging` | Seule la couche `marts` est exposée |
+| Même en désactivant la lecture seule dans sa session, l'API ne peut pas écrire | Deux protections indépendantes : la lecture seule **et** les droits |
+
+Ces tests ne tournent que sur une base nommée `dw_test`, jamais sur `dw_dev` ni `dw_prod`. Les mots de passe du job n'existent que dans ce conteneur jetable.
+
 **Ce que la CI ne teste pas :** la vraie connexion aux serveurs, qu'elle ne peut pas joindre. Elle se vérifie sur le poste, avec :
 
 ```powershell

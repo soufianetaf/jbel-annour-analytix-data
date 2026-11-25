@@ -10,7 +10,8 @@
 #  Les contrôles s'ajoutent au fil des étapes du projet :
 #    - étape 1     : sécurité du dépôt (fichiers interdits, secrets)
 #    - étape 2     : dépendances figées (uv), style (ruff), tests (pytest)
-#    - entrepôt    : dbt (compilation, tests, tests unitaires)
+#    - étape 3     : initialisation de l'entrepôt et droits des comptes
+#    - dbt         : compilation, tests, tests unitaires
 #    - API         : tests d'accès par rôle
 # ════════════════════════════════════════════════════════════════
 
@@ -94,3 +95,40 @@ jobs:
 
       - name: Tests unitaires (pytest)
         run: uv run pytest
+
+  # ─── 4. Entrepôt : initialisation et droits sur un vrai PostgreSQL ─
+  entrepot:
+    name: Entrepôt PostgreSQL
+    runs-on: ubuntu-latest
+    # PostgreSQL 16 jetable, créé pour ce job puis détruit. Les mots de
+    # passe ci-dessous n'existent que dans ce conteneur : aucun secret réel.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: admin-ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ANALYTIX_TEST_ENTREPOT: "1"
+      DW_HOST: localhost
+      DW_PORT: "5432"
+      DW_DATABASE: dw_test
+      DW_ADMIN_USER: postgres
+      DW_ADMIN_PASSWORD: admin-ci
+      DW_PASSWORD: chargeur-ci
+      API_DB_PASSWORD: api-ci
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Installer Python et les dépendances figées
+        run: uv sync --locked
+
+      - name: Initialiser l'entrepôt et tester les droits de chaque compte
+        run: uv run pytest -m entrepot -v
