@@ -178,3 +178,59 @@ models:
         data_tests: [not_null]
       - name: code_lettrage
         description: "1 non lettrée, 2 lettrée (FLGCLE_0)."
+
+  - name: stg_x3__lignes_ecriture
+    description: >
+      Lignes d'écritures de Sage X3, nettoyées, sans libellé ni nom de tiers.
+      Grain : une ligne = une ligne d'écriture dans un registre.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [type_piece, numero_piece, ligne, registre]
+    columns:
+      - name: registre
+        description: "1 comptabilité générale, 2 analytique (LEDTYP_0)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+      - name: compte
+        data_tests: [not_null]
+      - name: sens
+        description: "1 débit, -1 crédit (SNS_0)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, -1]
+                quote: false
+      - name: montant
+        description: Montant en MAD (AMTLED_0), positif.
+        data_tests: [not_null]
+      - name: date_comptable
+        data_tests: [not_null]
+
+  - name: stg_x3__ecritures
+    description: "Entêtes d'écritures de Sage X3. Grain : une ligne = une pièce."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [type_piece, numero_piece]
+    columns:
+      - name: code_categorie
+        description: "1 réelle ; 2 et 3 à confirmer (simulation, provisoire)."
+        data_tests: [not_null]
+
+  - name: stg_x3__comptes
+    description: "Plan comptable de Sage X3. Grain : une ligne = un compte d'un plan."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [plan_comptable, compte]
+
+  - name: stg_x3__exercices
+    description: "Exercices comptables de Sage X3. Grain : un exercice d'une société dans un registre."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [societe, registre, numero_exercice]

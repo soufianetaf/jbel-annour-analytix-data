@@ -254,6 +254,84 @@ def rapprocher_creances() -> bool:
     return all(r.conforme for r in resultats)
 
 
+# ─── Résultat par exercice : BALANCE de Sage X3 / marts.fct_ecritures ─
+#
+# BALANCE est tenue par Sage X3 lui-même (cumuls débit et crédit par
+# compte et par période, colonnes DEBLED_0 … DEBLED_27). L'entrepôt part
+# des LIGNES d'écritures. Deux chemins indépendants vers le même chiffre :
+#   résultat = - (débits - crédits) des comptes des classes 6 et 7
+# La BALANCE contient les écritures de clôture : un exercice clôturé y vaut 0.
+# Le rapprochement compare donc TOUTES les écritures, clôture comprise ; le
+# résultat de gestion (hors clôture) est affiché à côté, pour information.
+
+PERIODES_BALANCE = range(28)  # DEBLED_0 … DEBLED_27 : à-nouveaux + périodes
+
+REQUETE_RESULTAT_X3 = """
+SELECT FIY_0 AS exercice,
+       -SUM(({debits}) - ({credits})) AS resultat
+FROM {dossier}.BALANCE
+WHERE LEDTYP_0 = 1
+  AND (ACC_0 LIKE '6%' OR ACC_0 LIKE '7%')
+  -- BALANCE a une ligne par site ET une ligne de total société (site vide) :
+  -- on ne lit que les totaux, sinon tout est compté deux fois
+  AND LTRIM(RTRIM(FCY_0)) = ''
+GROUP BY FIY_0
+"""
+
+REQUETE_RESULTAT_ENTREPOT = """
+SELECT numero_exercice, -sum(solde)
+FROM marts.fct_ecritures
+WHERE classe IN ('6', '7')
+GROUP BY numero_exercice
+"""
+
+REQUETE_RESULTAT_GESTION = """
+SELECT numero_exercice, sum(montant_resultat)
+FROM marts.agg_compte_de_resultat_mois
+GROUP BY numero_exercice
+"""
+
+
+def requete_resultat_x3(dossier: str) -> str:
+    def colonnes(prefixe: str) -> str:
+        return " + ".join(f"CAST({prefixe}_{i} AS DECIMAL(28, 4))" for i in PERIODES_BALANCE)
+
+    return REQUETE_RESULTAT_X3.format(
+        dossier=_id(dossier), debits=colonnes("DEBLED"), credits=colonnes("CDTLED")
+    )
+
+
+def rapprocher_resultat() -> bool:
+    """Résultat par exercice : BALANCE de Sage X3 contre l'entrepôt."""
+    source, contexte_x3, connexion_dw = _connexions()
+    try:
+        with contexte_x3 as connexion_x3, connexion_dw.cursor() as curseur_dw:
+            curseur_x3 = connexion_x3.cursor()
+            curseur_x3.execute(requete_resultat_x3(source.dossier))
+            x3 = {int(a): Decimal(m) for a, m in curseur_x3.fetchall()}
+            curseur_dw.execute(REQUETE_RESULTAT_ENTREPOT)
+            dw = {int(a): Decimal(m) for a, m in curseur_dw.fetchall()}
+            curseur_dw.execute(REQUETE_RESULTAT_GESTION)
+            gestion = {int(a): Decimal(m) for a, m in curseur_dw.fetchall()}
+    finally:
+        connexion_dw.close()
+
+    lignes = comparer_ca(x3, dw)
+    print("\nClasses 6 et 7, clôture comprise : BALANCE X3 / entrepôt")
+    print(
+        f"  {'exerc.':6s} {'Sage X3':>18s} {'entrepôt':>18s}   {'écart':8s}"
+        f" {'résultat hors clôture':>22s}"
+    )
+    for exercice, cote_x3, cote_dw, ok in lignes:
+        etat = "OK" if ok else f"ÉCART {cote_dw - cote_x3:+,.2f}"
+        hors_cloture = gestion.get(exercice, Decimal(0))
+        print(
+            f"  {exercice:<6d} {cote_x3:>18,.2f} {cote_dw:>18,.2f}   {etat:8s}"
+            f" {hors_cloture:>22,.2f}"
+        )
+    return all(ok for *_, ok in lignes)
+
+
 def _identifiants_psycopg(entrepot) -> dict:
     ident = entrepot.identifiants_dlt()
     return {
@@ -273,8 +351,11 @@ def main(arguments: list[str] | None = None) -> int:
     parseur.add_argument("--raw", action="store_true", help="copies raw_x3 contre X3")
     parseur.add_argument("--ca", action="store_true", help="CA net par année contre X3")
     parseur.add_argument("--creances", action="store_true", help="restes à payer ouverts contre X3")
+    parseur.add_argument(
+        "--resultat", action="store_true", help="résultat par exercice contre la BALANCE X3"
+    )
     options = parseur.parse_args(arguments)
-    tout = not (options.raw or options.ca or options.creances)
+    tout = not (options.raw or options.ca or options.creances or options.resultat)
     conforme = True
     if options.raw or tout:
         conforme &= rapprocher_x3_ventes()
@@ -282,6 +363,8 @@ def main(arguments: list[str] | None = None) -> int:
         conforme &= rapprocher_ca_annuel()
     if options.creances or tout:
         conforme &= rapprocher_creances()
+    if options.resultat or tout:
+        conforme &= rapprocher_resultat()
     return 0 if conforme else 1
 
 

@@ -137,6 +137,7 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 | | Le rapprochement détecte une ligne manquante, un écart de montant d'un centime ou plus, un doublon de clé ; il tolère moins d'un centime | Critère d'acceptation n° 1 : écart inférieur à 0,01 MAD, nul pour les comptages |
 | | Une liste fermée ne copie que les colonnes choisies ; elle reste soumise au contrôle des colonnes sensibles ; la fiche client ne contient ni CIN ni banque | Une colonne ajoutée plus tard dans X3 n'entre jamais sans décision |
 | | Une table incrémentale dont la date de modification ou la clé ne serait pas copiée est refusée ; les échéances sont copiées en incrémental, avec leur clé complète | Sans la date, la copie ne reprendrait pas ; sans la clé, la fusion créerait des doublons |
+| | La requête de rapprochement additionne les 28 colonnes de la BALANCE (à-nouveaux et périodes), registre général seulement ; les écritures sont copiées sans libellé ni nom de tiers | Une période oubliée fausserait le résultat de référence ; un libellé peut contenir un nom de personne |
 | `tests/test_yaml_dbt.py` | Les YAML de dbt sont valides, et aucune description n'a été coupée par une virgule dans `{ … }` | Une description coupée crée une clé fantôme sans aucune erreur visible |
 | `tests/test_sqlserver.py` | La requête de lecture des données envoyée par dlt contient `WITH (NOLOCK)` | Règle d'or n° 7 : lire Sage X3 sans poser ni attendre de verrou |
 
@@ -146,6 +147,7 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 uv run python -m ingestion.x3_ventes          # copies raw_x3 contre X3 (lignes, montants, doublons)
 uv run python -m ingestion.rapprochement --ca # CA net par année : Sage X3 contre marts.fct_ventes
 uv run python -m ingestion.rapprochement --creances # restes à payer ouverts, clients et fournisseurs
+uv run python -m ingestion.rapprochement --resultat # résultat par exercice : BALANCE de X3 contre l'entrepôt
 ```
 
 Le rapprochement du CA calcule le même indicateur des deux côtés, mais par deux chemins : les **entêtes** dans Sage X3, les **lignes** dans l'entrepôt. Écart toléré : moins de 0,01 MAD par année (critère d'acceptation n° 1).
@@ -191,6 +193,13 @@ Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à 
 | | Test unitaire `echeances_reste_signe_et_tranches` | Date du jour figée au 30/06/2026 : reste à payer signé, avoir négatif, échéance soldée sans tranche, bornes 30 / 31 jours | La balance âgée est juste aux limites des tranches, quel que soit le jour où le test tourne |
 | `snap_echeances_ouvertes` | Unicité (jour, échéance) | Une photo par échéance et par jour | Relancer dbt dans la journée remplace la photo du jour sans la doubler |
 | | `full_refresh=false` | Même `--full-refresh` ne reconstruit pas la table | Les photos passées ne se recalculent pas : les effacer serait une perte définitive |
+| `stg_x3__lignes_ecriture` | `assert_x3_paie_sans_salarie_identifiable` | Aucune ligne des comptes de personnel (617, 443, 3431) ne porte de tiers | Règle d'or n° 2 : si la paie était un jour comptabilisée salarié par salarié, ce test **bloquerait la chaîne** avant que des salaires individuels ne soient exposés. Il ne renvoie que des comptages, jamais un montant |
+| | Unicité (pièce, ligne, registre) ; `accepted_values` registre (1, 2) et sens (1, -1) | Grain et valeurs connues | La fusion incrémentale et le calcul débit / crédit en dépendent |
+| `fct_ecritures` | **Contrat**, clé primaire ; `relationships` vers `dim_compte` | Chaque ligne a son compte | Une ligne sans compte disparaîtrait du CPC |
+| | `assert_ecritures_equilibrees` | Chaque pièce : débits = crédits, au centime | Partie double : une pièce déséquilibrée dans l'entrepôt signalerait une ligne perdue ou doublée |
+| | `assert_exercices_clotures_soldes` | Un exercice clôturé a ses classes 6 et 7 à zéro, clôture comprise | Une pièce de clôture manquante, ou une écriture perdue ou doublée, est détectée ; garantit que le résultat hors clôture est le résultat de l'exercice |
+| `dim_compte` | `accepted_values` sur `nature` | charge, produit, bilan | Le CPC ne lit que les charges et les produits |
+| `agg_compte_de_resultat_mois` | Unicité (mois, société, compte, exercice) ; rubrique renseignée | Un compte par mois ; chaque compte de classe 6 ou 7 a sa rubrique | Un compte sans rubrique sortirait du CPC présenté par rubrique |
 | Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
 
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)

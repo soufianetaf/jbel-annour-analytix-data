@@ -25,3 +25,13 @@ sources:
           Échéances clients et fournisseurs (GACCDUDATE), en liste fermée.
           Copie incrémentale sur UPDDATTIM_0, complète chaque semaine.
           Une ligne par échéance d'une pièce comptable.
+      - name: gaccentryd
+        description: >
+          Lignes d'écritures comptables (GACCENTRYD), en liste fermée, sans
+          libellé ni nom de tiers. Incrémental sur UPDDATTIM_0.
+      - name: gaccentry
+        description: Entêtes d'écritures comptables (GACCENTRY), en liste fermée. Incrémental.
+      - name: gaccount
+        description: Plan comptable (GACCOUNT), en liste fermée.
+      - name: fiscalyear
+        description: Exercices comptables (FISCALYEAR).

@@ -186,3 +186,25 @@ def test_echeances_copiees_en_incremental_avec_cle_complete() -> None:
     assert echeances.lag_jours >= 1
     assert echeances.cle == ("TYP_0", "NUM_0", "LIG_0", "DUDLIG_0")
     assert set(echeances.cle) <= set(echeances.seulement)
+
+
+def test_requete_balance_additionne_toutes_les_periodes() -> None:
+    # Les 28 colonnes de la BALANCE (à-nouveaux + périodes) sont toutes prises
+    from ingestion.rapprochement import requete_resultat_x3
+
+    sql = requete_resultat_x3("BASE1")
+
+    assert "CAST(DEBLED_0 " in sql and "CAST(DEBLED_27 " in sql
+    assert "CAST(CDTLED_0 " in sql and "CAST(CDTLED_27 " in sql
+    assert "DEBLED_28" not in sql
+    assert "LEDTYP_0 = 1" in sql  # comptabilité générale seulement
+
+
+def test_comptabilite_sans_libelle_ni_nom_de_tiers() -> None:
+    # Un libellé d'écriture peut contenir un nom de personne
+    from ingestion.x3_finance import TABLES as TABLES_FINANCE
+
+    lignes = next(t for t in TABLES_FINANCE if t.nom == "GACCENTRYD")
+
+    assert "DES_0" not in lignes.seulement
+    assert "XBPRNAM_0" not in lignes.seulement

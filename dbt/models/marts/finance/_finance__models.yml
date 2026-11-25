@@ -69,6 +69,100 @@ models:
                   - "6 - plus de 365 jours"
       - {name: charge_le, data_type: timestamp with time zone}
 
+  - name: dim_compte
+    description: >
+      Plan comptable de Sage X3, avec classe, nature (charge, produit, bilan)
+      et rubrique du CPC. Grain : une ligne = un compte, plus une ligne « Inconnu ».
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [cle_compte]
+    columns:
+      - {name: cle_compte, data_type: text, description: "md5('x3|BASE1|' || plan || '|' || compte)."}
+      - {name: plan_comptable, data_type: text}
+      - {name: compte, data_type: text}
+      - {name: intitule, data_type: text, data_tests: [not_null]}
+      - {name: classe, data_type: text}
+      - name: nature
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [charge, produit, bilan]
+      - {name: rubrique_cpc, data_type: text, description: Rubrique du CPC (classes 6 et 7 seulement).}
+      - {name: est_actif, data_type: boolean}
+
+  - name: fct_ecritures
+    description: >
+      Lignes d'écritures de la comptabilité générale de Sage X3, catégories 1 et 2 (simulations exclues).
+      Grain : une ligne = une ligne d'écriture. solde = débit - crédit, en MAD.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [type_piece, numero_piece, ligne]
+    columns:
+      - {name: type_piece, data_type: text, data_tests: [not_null]}
+      - {name: numero_piece, data_type: text, data_tests: [not_null]}
+      - {name: ligne, data_type: integer, data_tests: [not_null]}
+      - {name: journal, data_type: text}
+      - {name: est_definitive, data_type: boolean}
+      - {name: est_cloture, data_type: boolean, description: "Pièce de clôture (type CLOS1) : à exclure d'un compte de résultat.", data_tests: [not_null]}
+      - {name: date_comptable, data_type: date, data_tests: [not_null]}
+      - {name: numero_exercice, data_type: integer}
+      - {name: periode, data_type: integer}
+      - {name: societe, data_type: text}
+      - {name: site, data_type: text}
+      - name: cle_compte
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_compte')
+                field: cle_compte
+      - {name: compte, data_type: text}
+      - {name: classe, data_type: text}
+      - {name: code_tiers, data_type: text}
+      - {name: debit, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: credit, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: solde, data_type: "numeric(28,10)", description: "Débit - crédit.", data_tests: [not_null]}
+      - {name: devise, data_type: text}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: agg_compte_de_resultat_mois
+    description: >
+      CPC mensuel. Grain : une ligne = un compte de charge ou de produit × un mois.
+      montant_resultat positif pour un produit, négatif pour une charge ;
+      résultat = somme de montant_resultat.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [mois, societe, cle_compte, numero_exercice]
+    columns:
+      - {name: mois, data_type: date, description: Premier jour du mois., data_tests: [not_null]}
+      - {name: annee, data_type: integer}
+      - {name: numero_exercice, data_type: integer}
+      - {name: societe, data_type: text}
+      - {name: cle_compte, data_type: text}
+      - {name: compte, data_type: text}
+      - {name: intitule, data_type: text}
+      - name: nature
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [charge, produit]
+      - {name: rubrique_cpc, data_type: text, data_tests: [not_null]}
+      - {name: debit, data_type: "numeric(28,10)"}
+      - {name: credit, data_type: "numeric(28,10)"}
+      - {name: montant_resultat, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: lignes, data_type: integer}
+
+
 unit_tests:
   - name: echeances_reste_signe_et_tranches
     description: >

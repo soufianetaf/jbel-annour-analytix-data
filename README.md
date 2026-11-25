@@ -411,6 +411,7 @@ uv run --env-file ../.env dbt source freshness      # vérifie que les copies so
 cd ..
 uv run python -m ingestion.rapprochement --ca       # CA net par année : Sage X3 contre l'entrepôt
 uv run python -m ingestion.rapprochement --creances # créances et dettes ouvertes : Sage X3 contre l'entrepôt
+uv run python -m ingestion.rapprochement --resultat # résultat par exercice : BALANCE de X3 contre l'entrepôt
 uv run pytest                                    # lance les tests
 ```
 

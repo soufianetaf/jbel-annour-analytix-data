@@ -17,6 +17,13 @@ test-paths: ["tests"]
 seed-paths: ["seeds"]
 snapshot-paths: ["snapshots"]
 
+vars:
+  # Type de pièce de clôture de Sage X3 : une pièce par exercice, au 31/12,
+  # qui solde les comptes 6 et 7. Exclue du compte de résultat.
+  # Attention : le JOURNAL J42 n'est pas un journal de clôture (il contient
+  # aussi des opérations diverses et des amortissements toute l'année).
+  type_piece_cloture: CLOS1
+
 clean-targets: ["target", "dbt_packages"]
 
 flags:
