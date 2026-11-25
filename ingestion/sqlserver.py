@@ -77,13 +77,19 @@ def chaine_connexion(
     return ";".join(f"{cle}={valeur}" for cle, valeur in elements.items())
 
 
-@contextmanager
-def connecter(
+def ouvrir_connexion(
     source: SourceSqlServer,
     parametres: Parametres,
     database: str | None = None,
-) -> Iterator[pyodbc.Connection]:
-    """Ouvre une connexion en lecture seule, sans verrou, puis la referme."""
+    read_uncommitted: bool = True,
+) -> pyodbc.Connection:
+    """Ouvre une connexion en lecture seule, sans verrou (à refermer soi-même).
+
+    ``read_uncommitted=False`` garde le niveau par défaut de SQL Server :
+    réservé à dlt, dont la lecture du catalogue (option READPAST) est
+    refusée en READ UNCOMMITTED. Ses lectures de données reçoivent alors
+    l'option WITH (NOLOCK), qui a le même effet table par table.
+    """
     import pyodbc  # importé ici : les tests sans pilote ODBC n'en ont pas besoin
 
     connexion = pyodbc.connect(
@@ -92,14 +98,58 @@ def connecter(
         autocommit=True,
         timeout=DELAI_CONNEXION_S,
     )
-    try:
-        curseur = connexion.cursor()
+    curseur = connexion.cursor()
+    if read_uncommitted:
         curseur.execute("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
-        curseur.execute(f"SET LOCK_TIMEOUT {DELAI_VERROU_MS}")
-        curseur.close()
+    curseur.execute(f"SET LOCK_TIMEOUT {DELAI_VERROU_MS}")
+    curseur.close()
+    return connexion
+
+
+@contextmanager
+def connecter(
+    source: SourceSqlServer,
+    parametres: Parametres,
+    database: str | None = None,
+) -> Iterator[pyodbc.Connection]:
+    """Ouvre une connexion en lecture seule, sans verrou, puis la referme."""
+    connexion = ouvrir_connexion(source, parametres, database)
+    try:
         yield connexion
     finally:
         connexion.close()
+
+
+def moteur_sqlalchemy(
+    source: SourceSqlServer,
+    parametres: Parametres,
+    database: str | None = None,
+):
+    """Moteur SQLAlchemy pour dlt, dont chaque connexion passe par ``ouvrir_connexion``.
+
+    dlt ne reçoit donc jamais une connexion ordinaire : toutes ses lectures
+    sont faites en lecture seule, sous le nom « Jbel Annour Analytix »,
+    avec un délai de verrou de 2 s. Les requêtes de données doivent passer
+    par ``sans_verrou`` (option WITH (NOLOCK)). Aucun « pool » : la
+    connexion est refermée après usage.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import NullPool
+
+    return create_engine(
+        "mssql+pyodbc://",
+        creator=lambda: ouvrir_connexion(source, parametres, database, read_uncommitted=False),
+        poolclass=NullPool,
+    )
+
+
+def sans_verrou(requete, table):
+    """Ajoute WITH (NOLOCK) à une requête SQLAlchemy de lecture d'une table.
+
+    Utilisé par dlt (``query_adapter_callback``) : la lecture des données ne
+    pose aucun verrou et n'attend aucun verrou, comme en READ UNCOMMITTED.
+    """
+    return requete.with_hint(table, "WITH (NOLOCK)", dialect_name="mssql")
 
 
 # Requête de contrôle des droits du compte connecté. Elle ne lit que des

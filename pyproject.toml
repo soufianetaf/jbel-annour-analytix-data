@@ -5,6 +5,8 @@ description = "Data warehouse et API de Jbel Annour Analytix"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    # Ingestion : copie des tables sources vers la couche raw de l'entrepôt
+    "dlt[postgres,sql-database]>=1.5",
     # Connexion à l'entrepôt PostgreSQL (le même pilote que dbt et dlt)
     "psycopg2-binary>=2.9",
     # Lecture des variables du fichier .env, avec contrôle des types

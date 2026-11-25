@@ -130,6 +130,19 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 | | Le groupe de lecture ne reçoit que `USAGE` et `SELECT`, et seulement sur `marts` | Les données non nettoyées (`raw`, `staging`) ne sortent jamais vers l'API ni Power BI |
 | | Les mots de passe ne s'affichent jamais et sont passés en paramètre, jamais collés dans le SQL | Ni fuite dans le terminal, ni injection SQL |
 
+| `tests/test_ingestion_x3.py` | Une colonne dont le nom ressemble à une donnée sensible (`PASS`, `PWD`, `TOKEN`, `CIN`, `RIB`, `IBAN`, `BAN_`, `SALAIRE`…) **arrête le chargement** tant qu'elle n'a pas été exclue ou autorisée explicitement | Règle d'or n° 2. En cas de doute on ne copie rien : la décision est écrite dans le code, avec sa raison (ex. `BPCINV_0` = client facturé, pas un CIN) |
+| | Une colonne exclue n'est jamais demandée à la source | La donnée sensible ne quitte même pas le serveur Sage X3 |
+| | Une colonne décidée qui a disparu de la source est signalée | Un changement de structure dans Sage X3 ne passe pas inaperçu |
+| | La banque de paiement (`PAYBAN_0`) n'est jamais copiée | Donnée bancaire |
+| | Le rapprochement détecte une ligne manquante, un écart de montant d'un centime ou plus, un doublon de clé ; il tolère moins d'un centime | Critère d'acceptation n° 1 : écart inférieur à 0,01 MAD, nul pour les comptages |
+| `tests/test_sqlserver.py` | La requête de lecture des données envoyée par dlt contient `WITH (NOLOCK)` | Règle d'or n° 7 : lire Sage X3 sans poser ni attendre de verrou |
+
+**Le rapprochement sur les vraies données** ne peut pas tourner dans la CI (pas d'accès à Sage X3). Il est lancé automatiquement à la fin de chaque copie, sur le poste ou le serveur :
+
+```powershell
+uv run python -m ingestion.x3_ventes
+```
+
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)
 
 La CI démarre un **PostgreSQL 16 jetable** (détruit à la fin du job), y lance le script d'initialisation **deux fois**, puis vérifie les droits réels de chaque compte (`tests/test_entrepot_acces.py`) :

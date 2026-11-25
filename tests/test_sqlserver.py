@@ -161,3 +161,19 @@ def test_compte_admin_refuse_par_defaut() -> None:
 def test_compte_admin_tolere_avec_derogation() -> None:
     # Dérogation décidée par l'entreprise : valable en dev comme en prod
     assert decision_compte(COMPTE_SA, compte_admin_accepte=True) == "tolere"
+
+
+# ─── Lecture des données sans verrou (dlt) ──────────────────────────
+
+
+def test_requete_dlt_lit_sans_verrou() -> None:
+    from sqlalchemy import Column, Integer, MetaData, Table, select
+    from sqlalchemy.dialects import mssql
+
+    from ingestion.sqlserver import sans_verrou
+
+    table = Table("SINVOICE", MetaData(), Column("NUM_0", Integer), schema="BASE1")
+
+    sql = str(sans_verrou(select(table), table).compile(dialect=mssql.dialect()))
+
+    assert "FROM [BASE1].[SINVOICE] WITH (NOLOCK)" in sql

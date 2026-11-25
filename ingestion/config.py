@@ -101,6 +101,31 @@ class SourceUsine(SourceSqlServer):
     model_config = _config("USINE_")
 
 
+class EntrepotChargeur(BaseSettings):
+    """Connexion à l'entrepôt avec le compte de chargement (analytix_chargeur).
+
+    Jamais le compte administrateur : celui-ci ne sert qu'à l'initialisation.
+    """
+
+    model_config = _config("DW_")
+
+    host: str = "localhost"
+    port: int = 5432
+    database: str = "dw_dev"
+    user: str = "analytix_chargeur"
+    password: SecretStr
+
+    def identifiants_dlt(self) -> dict[str, str | int]:
+        """Identifiants au format attendu par la destination postgres de dlt."""
+        return {
+            "host": self.host,
+            "port": self.port,
+            "database": self.database,
+            "username": self.user,
+            "password": self.password.get_secret_value(),
+        }
+
+
 @lru_cache
 def parametres() -> Parametres:
     return Parametres()
