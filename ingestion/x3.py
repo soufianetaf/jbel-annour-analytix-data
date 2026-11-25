@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from ingestion.colonnes import colonnes_a_copier
-from ingestion.config import EntrepotChargeur, SourceX3, parametres, sources
+from ingestion.config import EntrepotChargeur, SourceSqlServer, SourceX3, parametres, sources
 from ingestion.sqlserver import (
     connecter,
     decision_compte,
@@ -67,6 +67,35 @@ class TableX3:
         return self.nom.lower()
 
 
+@dataclass(frozen=True)
+class Cible:
+    """Où lire (source, base, schéma SQL Server) et où écrire (schéma raw).
+
+    Sage X3 : la base est celle du .env, le schéma est le dossier (BASE1).
+    Serveur de l'usine : une base par application (Magasin…), schéma dbo,
+    et un schéma raw par base (raw_magasin…), comme le prévoit le cahier
+    des charges (8.2).
+    """
+
+    source: str = "x3"
+    base: str | None = None
+    schema_source: str | None = None  # None : dossier X3 du .env
+    schema_raw: str = SCHEMA_RAW
+
+    def schema_lu(self, source: SourceSqlServer) -> str:
+        if self.schema_source:
+            return self.schema_source
+        assert isinstance(source, SourceX3), "schéma source obligatoire hors Sage X3"
+        return source.dossier
+
+    def origine(self, source: SourceSqlServer, table: str) -> str:
+        base = f"{self.base}." if self.base else ""
+        return f"{self.source}.{base}{self.schema_lu(source)}.{table}"
+
+
+CIBLE_X3 = Cible()
+
+
 # ─── Contrôles (métadonnées seulement) ───────────────────────────────
 
 
@@ -84,13 +113,23 @@ def colonnes_source(curseur, dossier: str, table: str) -> list[str]:
     return colonnes
 
 
-def exiger_lecture_seule(source: SourceX3, connexion) -> None:
-    """Refuse de lire si le compte peut écrire, sauf dérogation déclarée."""
-    droits = verifier_droits(connexion, (source.dossier,))
+def exiger_lecture_seule(source: SourceSqlServer, connexion, schemas: tuple[str, ...]) -> None:
+    """Refuse de lire si le compte peut écrire, sauf dérogation déclarée.
+
+    Avec une dérogation (compte « sa » de l'usine), la lecture est permise
+    et un avertissement est affiché : seules des lectures sont faites.
+    """
+    droits = verifier_droits(connexion, schemas)
     problemes = droits_interdits(droits)
-    if decision_compte(problemes, source.compte_admin_accepte) == "refuse":
+    decision = decision_compte(problemes, source.compte_admin_accepte)
+    if decision == "refuse":
         raise PermissionError(
-            f"compte « {droits['compte']} » refusé, il peut modifier Sage X3 : {problemes}"
+            f"compte « {droits['compte']} » refusé, il peut modifier la source : {problemes}"
+        )
+    if decision == "tolere":
+        print(
+            f"ATTENTION : compte « {droits['compte']} » toléré par dérogation "
+            "(il peut écrire) ; Analytix n'exécute que des lectures.\n"
         )
 
 
@@ -115,23 +154,25 @@ def charger(
     tables: tuple[TableX3, ...],
     simulation: bool = False,
     complet: bool = False,
+    cible: Cible = CIBLE_X3,
 ) -> dict[str, list[str]]:
-    """Copie ``tables`` dans raw_x3. Retourne les colonnes copiées par table.
+    """Copie ``tables`` de la source décrite par ``cible`` dans son schéma raw.
 
+    Retourne les colonnes copiées par table.
     ``complet`` : recopie entièrement aussi les tables incrémentales.
     """
     params = parametres()
-    source = sources()["x3"]
-    assert isinstance(source, SourceX3)
+    source = sources()[cible.source]
     if not source.configuree:
-        raise SystemExit("Sage X3 non configuré dans .env (X3_HOST…)")
+        raise SystemExit(f"source « {cible.source} » non configurée dans .env")
+    schema = cible.schema_lu(source)
 
     # 1. Contrôles, avant de lire la moindre donnée
-    with connecter(source, params) as connexion:
-        exiger_lecture_seule(source, connexion)
+    with connecter(source, params, database=cible.base) as connexion:
+        exiger_lecture_seule(source, connexion, (schema,))
         curseur = connexion.cursor()
         plan = verifier_tables(
-            tables, {t.nom: colonnes_source(curseur, source.dossier, t.nom) for t in tables}
+            tables, {t.nom: colonnes_source(curseur, schema, t.nom) for t in tables}
         )
 
     for table in tables:
@@ -140,7 +181,7 @@ def charger(
         else:
             mode = "copie complète"
         print(
-            f"{source.dossier}.{table.nom} → {SCHEMA_RAW}.{table.destination} : "
+            f"{cible.origine(source, table.nom)} → {cible.schema_raw}.{table.destination} : "
             f"{len(plan[table.nom])} colonnes"
             + (" (liste fermée)" if table.seulement else "")
             + (f", exclues {sorted(table.exclues)}" if table.exclues else "")
@@ -154,11 +195,11 @@ def charger(
     import dlt
     from dlt.sources.sql_database import sql_table
 
-    moteur = moteur_sqlalchemy(source, params)
+    moteur = moteur_sqlalchemy(source, params, database=cible.base)
     charge_le = datetime.now(UTC)
 
     def tracabilite(nom_table: str):
-        origine = f"x3.{source.dossier}.{nom_table}"
+        origine = cible.origine(source, nom_table)
 
         def ajouter(ligne: dict) -> dict:
             ligne["_source"] = origine
@@ -172,7 +213,7 @@ def charger(
         incrementale = table.incremental is not None and not complet
         ressource = sql_table(
             credentials=moteur,
-            schema=source.dossier,
+            schema=schema,
             table=table.nom,
             included_columns=plan[table.nom],
             reflection_level="full_with_precision",  # garde la précision des montants
@@ -198,7 +239,7 @@ def charger(
     pipeline = dlt.pipeline(
         pipeline_name=nom_pipeline,
         destination=dlt.destinations.postgres(credentials=EntrepotChargeur().identifiants_dlt()),
-        dataset_name=SCHEMA_RAW,
+        dataset_name=cible.schema_raw,
     )
     print(f"\n{pipeline.run(ressources)}")
     return plan
@@ -209,6 +250,7 @@ def executer(
     tables: tuple[TableX3, ...],
     description: str,
     arguments: list[str] | None = None,
+    cible: Cible = CIBLE_X3,
 ) -> int:
     """Ligne de commande commune : --simulation, --complet, puis rapprochement."""
     parseur = argparse.ArgumentParser(description=description)
@@ -217,10 +259,12 @@ def executer(
         "--complet", action="store_true", help="recopie entière, y compris des tables incrémentales"
     )
     options = parseur.parse_args(arguments)
-    charger(nom_pipeline, tables, simulation=options.simulation, complet=options.complet)
+    charger(
+        nom_pipeline, tables, simulation=options.simulation, complet=options.complet, cible=cible
+    )
     if options.simulation:
         return 0
 
     from ingestion.rapprochement import rapprocher_tables
 
-    return 0 if rapprocher_tables(tables) else 1
+    return 0 if rapprocher_tables(tables, cible) else 1

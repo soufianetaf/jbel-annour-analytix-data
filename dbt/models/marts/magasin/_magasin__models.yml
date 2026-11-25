@@ -1,0 +1,120 @@
+version: 2
+
+# Tables du magasin (serveur de l'usine). Mêmes règles que les autres marts :
+# contrat, clé primaire, clés vers les dimensions partagées.
+
+models:
+  - name: fct_sorties_magasin
+    description: "Sorties magasin par service et affectation. Grain : une demande de sortie d'un article."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_sortie]
+    columns:
+      - {name: id_sortie, data_type: integer}
+      - {name: date_demande, data_type: date, data_tests: [not_null]}
+      - name: cle_article
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_article')
+                field: cle_article
+      - {name: code_article, data_type: text}
+      - {name: designation, data_type: text}
+      - {name: service, data_type: text, description: "Service demandeur (code)."}
+      - {name: service_concerne, data_type: text, description: "Service consommateur."}
+      - {name: affectation_1, data_type: text, description: "Machine, zone… (première affectation)."}
+      - {name: affectation_2, data_type: text}
+      - {name: quantite, data_type: "numeric(28,10)"}
+      - {name: decision, data_type: text}
+      - {name: statut, data_type: text}
+      - {name: est_validee, data_type: boolean, description: "Traitée (DONE) et approuvée (APPROVED)."}
+      - {name: valide_le, data_type: timestamp}
+      - {name: heures_validation, data_type: "numeric(18,2)"}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: fct_gasoil
+    description: "Bons de gasoil. Grain : un bon. Le véhicule est à ajouter (nature de matricule à confirmer)."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_bon]
+    columns:
+      - {name: id_bon, data_type: integer}
+      - {name: numero_bon, data_type: text}
+      - {name: date_bon, data_type: date, data_tests: [not_null]}
+      - {name: vehicule, data_type: text}
+      - {name: service, data_type: text}
+      - {name: affectation_1, data_type: text}
+      - {name: cle_article, data_type: text}
+      - {name: code_article, data_type: text}
+      - {name: litres, data_type: "numeric(18,3)", description: "Litres délivrés (quantité saisie)."}
+      - {name: compteur_km, data_type: integer, description: "Relevé du compteur kilométrique (pas une distance)."}
+      - {name: decision, data_type: text}
+      - {name: est_valide, data_type: boolean}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: fct_demandes_achat_usine
+    description: "Demandes d'achat de l'usine (espace_magasin). Grain : une ligne de demande."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_ligne]
+    columns:
+      - {name: id_ligne, data_type: bigint}
+      - {name: id_demande, data_type: bigint}
+      - {name: numero_demande, data_type: text}
+      - {name: numero_da_x3, data_type: text, description: "Numéro de DA dans Sage X3, si reprise."}
+      - {name: date_demande, data_type: date}
+      - {name: departement, data_type: text}
+      - {name: service, data_type: text}
+      - {name: famille, data_type: text}
+      - {name: cle_article, data_type: text}
+      - {name: code_article, data_type: text}
+      - {name: designation, data_type: text}
+      - {name: quantite_demandee, data_type: "numeric(28,10)"}
+      - {name: quantite_validee, data_type: "numeric(28,10)"}
+      - {name: decision_ligne, data_type: text}
+      - {name: decision_demande, data_type: text}
+      - {name: a_depassement_budget, data_type: boolean}
+      - {name: cree_le, data_type: timestamp}
+      - {name: valide_le, data_type: timestamp}
+      - {name: jours_validation, data_type: "numeric(18,2)"}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: fct_depassements_budget
+    description: "Dépassements de budget et leur circuit d'avis. Grain : une demande de dépassement."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_depassement]
+    columns:
+      - {name: id_depassement, data_type: integer}
+      - {name: numero_depassement, data_type: text}
+      - {name: numero_da, data_type: text}
+      - {name: numero_budget, data_type: text}
+      - {name: date_demande, data_type: date}
+      - {name: cle_article, data_type: text}
+      - {name: code_article, data_type: text}
+      - {name: designation, data_type: text}
+      - {name: famille, data_type: text}
+      - {name: quantite_demandee, data_type: "numeric(28,10)"}
+      - {name: quantite_budget, data_type: "numeric(28,10)"}
+      - {name: quantite_depassement, data_type: "numeric(28,10)", description: "Quantité demandée - quantité budgétée."}
+      - {name: statut, data_type: text}
+      - {name: avis_magasin, data_type: text}
+      - {name: avis_methodes, data_type: text}
+      - {name: avis_dga, data_type: text}
+      - {name: avis_gestion, data_type: text}
+      - {name: avis_amelioration, data_type: text}
+      - {name: avis_logistique, data_type: text}
+      - {name: avis_pdg, data_type: text}
+      - {name: est_approuve_pdg, data_type: boolean}
+      - {name: approuve_le, data_type: timestamp}
+      - {name: charge_le, data_type: timestamp with time zone}

@@ -99,8 +99,13 @@ def ouvrir_connexion(
         timeout=DELAI_CONNEXION_S,
     )
     curseur = connexion.cursor()
+    # Niveau toujours fixé explicitement : le pilote ODBC réutilise les
+    # connexions (pool), et une connexion recyclée peut garder le niveau de
+    # sa session précédente (constaté sur le serveur de l'usine).
     if read_uncommitted:
         curseur.execute("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+    else:
+        curseur.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
     curseur.execute(f"SET LOCK_TIMEOUT {DELAI_VERROU_MS}")
     curseur.close()
     return connexion

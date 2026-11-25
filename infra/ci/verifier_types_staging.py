@@ -24,11 +24,13 @@ DOSSIER_STAGING = Path(__file__).resolve().parents[2] / "dbt" / "models" / "stag
 
 TYPES_ATTENDUS = {
     "texte_x3": {"character varying", "text"},
+    "texte": {"character varying", "text"},
+    "date_seule": {"timestamp without time zone", "timestamp with time zone", "date"},
     "date_x3": {"timestamp without time zone", "date"},
     "horodatage_x3": {"timestamp without time zone"},
 }
 MOTIF_SOURCE = re.compile(r"source\('(\w+)', '(\w+)'\)")
-MOTIF_MACRO = re.compile(r"(texte_x3|date_x3|horodatage_x3)\('(\w+)'\)")
+MOTIF_MACRO = re.compile(r"(texte_x3|date_x3|horodatage_x3|texte|date_seule)\('(\w+)'\)")
 
 
 def incoherences(types: dict[tuple[str, str, str], str]) -> list[str]:
@@ -47,6 +49,34 @@ def incoherences(types: dict[tuple[str, str, str], str]) -> list[str]:
             elif reel not in TYPES_ATTENDUS[macro]:
                 problemes.append(f"{fichier.name} : {macro}({colonne}) mais la colonne est {reel}")
     return problemes
+
+
+def colonnes_absentes_de_raw(colonnes_raw: dict[tuple[str, str], set[str]]) -> list[str]:
+    """Colonnes des listes fermées de l'ingestion qui n'existent pas dans raw.
+
+    dlt ne crée pas une colonne dont toutes les valeurs sont vides : elle
+    manque alors dans raw, et un modèle staging qui la cite échoue.
+    """
+    from dlt.common.normalizers.naming.snake_case import NamingConvention
+
+    from ingestion import usine_magasin, x3_achats, x3_finance, x3_stock, x3_ventes
+    from ingestion.x3 import CIBLE_X3
+
+    nommage = NamingConvention()
+    groupes = [(m.TABLES, CIBLE_X3) for m in (x3_ventes, x3_finance, x3_stock, x3_achats)]
+    groupes += [(tables, cible) for _, tables, cible in usine_magasin.COPIES]
+    absentes = []
+    for tables, cible in groupes:
+        for table in tables:
+            if not table.seulement:
+                continue
+            reelles = colonnes_raw.get((cible.schema_raw, table.destination))
+            if reelles is None:
+                continue  # table pas encore copiée
+            attendues = {nommage.normalize_identifier(c) for c in table.seulement}
+            for colonne in sorted(attendues - reelles):
+                absentes.append(f"{cible.schema_raw}.{table.destination}.{colonne}")
+    return absentes
 
 
 def main() -> int:
@@ -70,6 +100,13 @@ def main() -> int:
         )
         types = {(s, t, c): d for s, t, c, d in curseur.fetchall()}
     connexion.close()
+
+    colonnes_raw: dict[tuple[str, str], set[str]] = {}
+    for schema, table, colonne in types:
+        colonnes_raw.setdefault((schema, table), set()).add(colonne)
+    for absente in colonnes_absentes_de_raw(colonnes_raw):
+        # Information : la colonne est vide dans la source (dlt ne l'a pas créée)
+        print(f"  info : {absente} absente de raw (vide dans la source ?)")
 
     problemes = incoherences(types)
     for probleme in problemes:

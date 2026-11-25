@@ -222,6 +222,10 @@ Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à 
 | | `assert_x3_da_montant_plausible` (avertissement) | Lignes de DA de plus de 100 M MAD | 85 lignes à prix fictif (500 000 MAD) totalisent 6 171 milliards MAD |
 | | `assert_x3_facture_fournisseur_entete_egal_lignes` (avertissement) | Factures dont l'entête ne correspond pas aux lignes | 22 factures : la comptabilité (entête) et l'analyse par article (lignes) divergent pour elles |
 | `dim_fournisseur`, `fct_cycle_achat`, `fct_achats_factures` | **Contrats**, clés primaires ; `relationships` vers `dim_fournisseur` et `dim_article` | Colonnes figées, fournisseurs et articles connus | Tables lues par l'API et Power BI |
+| Magasin (staging usine) | Unicité des identifiants ; `relationships` des articles de sortie vers Sage X3 ; décisions connues (APPROVED, REJECTED) | Une sortie, un bon, une DA = une ligne ; articles connus de X3 | Les sorties se croisent avec le stock et les achats par la clé article |
+| | `assert_magasin_gasoil_quantite_plausible` (avertissement) | Bons négatifs ou de plus de 2 000 L | 9 bons aberrants (jusqu'à -449 595 L) fausseraient la consommation |
+| `fct_sorties_magasin`, `fct_gasoil`, `fct_demandes_achat_usine`, `fct_depassements_budget` | **Contrats**, clés primaires ; `relationships` vers `dim_article` | Colonnes figées | Tables lues par l'API et Power BI |
+| Ingestion de l'usine | Contrôle du compte avant lecture : `sa` toléré par dérogation, avec avertissement | Lecture seule, sans verrou | Dérogation du 25/11/2026 (cahier des charges 5.4) |
 | Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
 
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)

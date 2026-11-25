@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: stg_magasin__sorties
+    description: "Demandes de sortie magasin. Grain : une demande de sortie d'un article."
+    columns:
+      - name: id_sortie
+        data_tests: [unique, not_null]
+      - name: article
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_x3__articles')
+                field: code_article
+      - name: decision
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [APPROVED, REJECTED]
+
+  - name: stg_magasin__gasoil
+    description: "Bons de gasoil, sans CIN ni matricule. Grain : un bon."
+    columns:
+      - name: id_bon
+        data_tests: [unique, not_null]
+      - name: quantite_saisie
+        description: "Litres délivrés (positifs ; voir assert_magasin_gasoil_quantite_plausible)."
+
+  - name: stg_espace_magasin__demandes_achat
+    description: "Demandes d'achat de l'usine. Grain : une demande."
+    columns:
+      - name: id_demande
+        data_tests: [unique, not_null]
+
+  - name: stg_espace_magasin__lignes_demande_achat
+    description: "Lignes de demandes d'achat de l'usine. Grain : une ligne."
+    columns:
+      - name: id_ligne
+        data_tests: [unique, not_null]
+      - name: id_demande
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_espace_magasin__demandes_achat')
+                field: id_demande
+              config:
+                severity: warn
+
+  - name: stg_espace_magasin__depassements
+    description: "Dépassements de budget. Grain : une demande de dépassement."
+    columns:
+      - name: id_depassement
+        data_tests: [unique, not_null]

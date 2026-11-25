@@ -1,0 +1,38 @@
+version: 2
+
+# Applications du magasin, sur le serveur de l'usine (lu avec le compte « sa »,
+# dérogation déclarée ; lectures seulement). Copiées par ingestion.usine_magasin,
+# en listes fermées : ni mots de passe, ni jetons, ni CIN, ni noms de personnes.
+
+sources:
+  - name: magasin
+    description: "Base Magasin : demandes de sortie de pièces et bons de gasoil."
+    schema: raw_magasin
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 4, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: requests
+        description: "Demandes de sortie magasin (une par article demandé)."
+      - name: requests_gazoil
+        description: "Bons de gasoil (sans CIN ni matricule du chauffeur)."
+
+  - name: espace_magasin
+    description: "Base espace_magasin : demandes d'achat, dépassements de budget, entrées, silos."
+    schema: raw_espace_magasin
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 4, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: demandes_achats
+        description: "Entêtes de demandes d'achat de l'usine."
+      - name: demandes_achats_lignes
+        description: "Lignes de demandes d'achat de l'usine."
+      - name: depassement
+        description: "Dépassements de budget et leur circuit d'avis."
+      - name: requests_entry
+        description: "Entrées magasin."
+      - name: da_coke_fuel
+        description: "Suivi des silos de coke et de fuel."

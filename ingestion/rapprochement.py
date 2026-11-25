@@ -98,17 +98,17 @@ def afficher(resultats: list[Resultat]) -> None:
         )
 
 
-def _connexions():
-    """Connexion à Sage X3 (lecture seule, sans verrou) et à l'entrepôt (lecture seule)."""
+def _connexions(nom_source: str = "x3", base: str | None = None):
+    """Connexion à la source (lecture seule, sans verrou) et à l'entrepôt (lecture seule)."""
     import psycopg2
 
     from ingestion.config import EntrepotChargeur, parametres, sources
     from ingestion.sqlserver import connecter
 
-    source = sources()["x3"]
+    source = sources()[nom_source]
     connexion_dw = psycopg2.connect(**_identifiants_psycopg(EntrepotChargeur()))
     connexion_dw.set_session(readonly=True)
-    return source, connecter(source, parametres()), connexion_dw
+    return source, connecter(source, parametres(), database=base), connexion_dw
 
 
 def rapprocher_x3_ventes() -> bool:
@@ -118,11 +118,13 @@ def rapprocher_x3_ventes() -> bool:
     return rapprocher_tables(TABLES)
 
 
-def rapprocher_tables(tables) -> bool:
-    """Rapproche des tables copiées dans raw_x3 avec Sage X3. Vrai si tout est conforme."""
-    from ingestion.x3 import SCHEMA_RAW
+def rapprocher_tables(tables, cible=None) -> bool:
+    """Rapproche des tables copiées dans un schéma raw avec leur source."""
+    from ingestion.x3 import CIBLE_X3
 
-    source, contexte_x3, connexion_dw = _connexions()
+    cible = cible or CIBLE_X3
+    source, contexte_x3, connexion_dw = _connexions(cible.source, cible.base)
+    schema = cible.schema_lu(source)
     resultats = []
     try:
         with contexte_x3 as connexion_x3, connexion_dw.cursor() as curseur_dw:
@@ -131,9 +133,9 @@ def rapprocher_tables(tables) -> bool:
                 resultats.append(
                     Resultat(
                         table=table.nom,
-                        source=mesurer_source(curseur_x3, source.dossier, table.nom, table.montant),
+                        source=mesurer_source(curseur_x3, schema, table.nom, table.montant),
                         entrepot=mesurer_entrepot(
-                            curseur_dw, SCHEMA_RAW, table.nom, table.montant, table.cle
+                            curseur_dw, cible.schema_raw, table.nom, table.montant, table.cle
                         ),
                     )
                 )
