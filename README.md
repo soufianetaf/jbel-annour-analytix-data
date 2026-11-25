@@ -403,7 +403,9 @@ uv run python -m infra.postgres.initialiser_entrepot --simulation   # affiche le
 uv run python -m infra.postgres.initialiser_entrepot                # crée dw_dev, ses comptes et schémas
 uv run python -m ingestion.x3_ventes --simulation   # contrôles avant copie (droits, colonnes sensibles)
 uv run python -m ingestion.x3_ventes                # copie les factures X3 dans raw_x3, puis rapproche
-uv run python -m ingestion.x3_finance               # copie incrémentale des échéances (--complet chaque semaine)
+uv run python -m ingestion.x3_finance               # copie incrémentale des échéances et de la comptabilité (--complet chaque semaine)
+uv run python -m ingestion.x3_stock                 # stock par article et mouvements (--complet chaque semaine)
+uv run python -m infra.ci.verifier_types_staging     # types des colonnes nettoyées en staging
 cd dbt
 uv run --env-file ../.env dbt deps                  # installe les bibliothèques dbt
 uv run --env-file ../.env dbt build                 # construit les modèles et lance tous les tests

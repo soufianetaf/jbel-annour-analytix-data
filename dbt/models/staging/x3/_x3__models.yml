@@ -247,3 +247,36 @@ models:
               arguments:
                 values: [1, 2]
                 quote: false
+
+  - name: stg_x3__stock_articles
+    description: "Stock et CMUP par article × site, état actuel. Grain : un article sur un site."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [article, site]
+    columns:
+      - name: article
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_x3__articles')
+                field: code_article
+      - name: cmup
+        description: Coût moyen unitaire pondéré (AVC_0).
+        data_tests: [not_null]
+
+  - name: stg_x3__mouvements_stock
+    description: "Mouvements de stock de Sage X3. Grain : un mouvement d'un article sur un site."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [site, code_mise_a_jour, article, date_mouvement, sequence, indice]
+    columns:
+      - name: article
+        data_tests: [not_null]
+      - name: date_mouvement
+        data_tests: [not_null]
+      - name: quantite
+        description: Quantité en unité de stock, positive à l'entrée, négative à la sortie.
+        data_tests: [not_null]

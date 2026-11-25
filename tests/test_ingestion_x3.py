@@ -230,3 +230,18 @@ def test_balance_lue_sur_ses_lignes_de_total() -> None:
     for sql in (requete_resultat_x3("BASE1"), REQUETE_TRESORERIE_X3):
         assert "LTRIM(RTRIM(FCY_0)) = ''" in sql
         assert "LTRIM(RTRIM(BPR_0)) = ''" in sql
+
+
+def test_verification_des_types_detecte_une_macro_texte_sur_un_nombre() -> None:
+    # stg_x3__mouvements_stock applique texte_x3 à stofcy_0 : si la colonne
+    # était un nombre (comme UPDCOD_0 l'est réellement), l'outil doit le dire
+    from infra.ci.verifier_types_staging import incoherences
+
+    types = {("raw_x3", "stojou", "stofcy_0"): "bigint"}
+
+    problemes = incoherences(types)
+
+    assert any(
+        "stg_x3__mouvements_stock" in p and "texte_x3(stofcy_0)" in p and "bigint" in p
+        for p in problemes
+    )

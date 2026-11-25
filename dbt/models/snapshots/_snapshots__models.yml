@@ -17,3 +17,15 @@ models:
         data_tests: [not_null]
       - name: reste_a_payer
         data_tests: [not_null]
+
+  - name: snap_stock_jour
+    description: >
+      Photo quotidienne du stock par article × site (articles avec stock).
+      Grain : un article × un site × un jour. Jamais reconstruite (full_refresh=false).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [date_photo, code_article, site]
+    columns:
+      - name: date_photo
+        data_tests: [not_null]

@@ -401,6 +401,45 @@ def rapprocher_tresorerie() -> bool:
     return all(not ecarts for *_, ecarts in resultat.values())
 
 
+# ─── Stock valorisé par site : Sage X3 / marts.fct_stock_article ──────
+
+REQUETE_STOCK_X3 = """
+SELECT LTRIM(RTRIM(STOFCY_0)), COUNT(*),
+       SUM(CAST(PHYSTO_0 AS DECIMAL(28, 6)) * CAST(AVC_0 AS DECIMAL(28, 6)))
+FROM {dossier}.ITMMVT
+GROUP BY LTRIM(RTRIM(STOFCY_0))
+"""
+
+REQUETE_STOCK_ENTREPOT = """
+SELECT site, count(*), sum(valeur_stock)
+FROM marts.fct_stock_article
+GROUP BY site
+"""
+
+
+def rapprocher_stock() -> bool:
+    """Stock valorisé (stock physique × CMUP) par site : Sage X3 contre l'entrepôt."""
+    source, contexte_x3, connexion_dw = _connexions()
+    try:
+        with contexte_x3 as connexion_x3, connexion_dw.cursor() as curseur_dw:
+            curseur_x3 = connexion_x3.cursor()
+            curseur_x3.execute(REQUETE_STOCK_X3.format(dossier=_id(source.dossier)))
+            x3 = {s: Mesure(int(n), Decimal(v)) for s, n, v in curseur_x3.fetchall()}
+            curseur_dw.execute(REQUETE_STOCK_ENTREPOT)
+            dw = {s: Mesure(int(n), Decimal(v)) for s, n, v in curseur_dw.fetchall()}
+    finally:
+        connexion_dw.close()
+
+    vide = Mesure(0, Decimal(0))
+    resultats = [
+        Resultat(table=f"site {s}", source=x3.get(s, vide), entrepot=dw.get(s, vide))
+        for s in sorted(set(x3) | set(dw))
+    ]
+    print("\nStock valorisé par site (articles, MAD)")
+    afficher(resultats)
+    return all(r.conforme for r in resultats)
+
+
 def _identifiants_psycopg(entrepot) -> dict:
     ident = entrepot.identifiants_dlt()
     return {
@@ -426,9 +465,15 @@ def main(arguments: list[str] | None = None) -> int:
     parseur.add_argument(
         "--tresorerie", action="store_true", help="soldes de trésorerie contre la BALANCE X3"
     )
+    parseur.add_argument("--stock", action="store_true", help="stock valorisé par site contre X3")
     options = parseur.parse_args(arguments)
     tout = not (
-        options.raw or options.ca or options.creances or options.resultat or options.tresorerie
+        options.raw
+        or options.ca
+        or options.creances
+        or options.resultat
+        or options.tresorerie
+        or options.stock
     )
     conforme = True
     if options.raw or tout:
@@ -441,6 +486,8 @@ def main(arguments: list[str] | None = None) -> int:
         conforme &= rapprocher_resultat()
     if options.tresorerie or tout:
         conforme &= rapprocher_tresorerie()
+    if options.stock or tout:
+        conforme &= rapprocher_stock()
     return 0 if conforme else 1
 
 

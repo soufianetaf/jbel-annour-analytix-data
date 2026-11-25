@@ -139,6 +139,8 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 | | Une table incrémentale dont la date de modification ou la clé ne serait pas copiée est refusée ; les échéances sont copiées en incrémental, avec leur clé complète | Sans la date, la copie ne reprendrait pas ; sans la clé, la fusion créerait des doublons |
 | | La requête de rapprochement additionne les 28 colonnes de la BALANCE (à-nouveaux et périodes), registre général seulement ; les écritures sont copiées sans libellé ni nom de tiers | Une période oubliée fausserait le résultat de référence ; un libellé peut contenir un nom de personne |
 | | Les soldes sont comparés compte par compte (deux écarts qui se compensent restent visibles) ; la `BALANCE` est lue sur ses lignes de total (site et tiers vides) | Un total juste peut cacher deux comptes faux ; la `BALANCE` double les comptes suivis par tiers |
+| `tests/test_photos_dbt.py` | **Chaque** photo quotidienne (dossier `dbt/models/snapshots`) a `full_refresh=false`, est incrémentale et remplace seulement la photo du jour | Une nouvelle photo oubliée sans cette protection serait effacée par un `--full-refresh` : le test l'interdit dès l'ajout |
+| `infra/ci/verifier_types_staging.py` (outil, et son test) | Chaque macro de nettoyage (`texte_x3`, `date_x3`…) s'applique à une colonne du bon type dans raw | Dans X3, une même colonne est un texte dans une table et un nombre dans une autre : l'outil liste tout d'un coup, avant la construction dbt |
 | `tests/test_yaml_dbt.py` | Les YAML de dbt sont valides, et aucune description n'a été coupée par une virgule dans `{ … }` | Une description coupée crée une clé fantôme sans aucune erreur visible |
 | `tests/test_sqlserver.py` | La requête de lecture des données envoyée par dlt contient `WITH (NOLOCK)` | Règle d'or n° 7 : lire Sage X3 sans poser ni attendre de verrou |
 
@@ -150,6 +152,7 @@ uv run python -m ingestion.rapprochement --ca # CA net par année : Sage X3 cont
 uv run python -m ingestion.rapprochement --creances # restes à payer ouverts, clients et fournisseurs
 uv run python -m ingestion.rapprochement --resultat # résultat par exercice : BALANCE de X3 contre l'entrepôt
 uv run python -m ingestion.rapprochement --tresorerie # soldes de trésorerie, compte par compte
+uv run python -m ingestion.rapprochement --stock # stock valorisé par site
 ```
 
 Le rapprochement du CA calcule le même indicateur des deux côtés, mais par deux chemins : les **entêtes** dans Sage X3, les **lignes** dans l'entrepôt. Écart toléré : moins de 0,01 MAD par année (critère d'acceptation n° 1).
@@ -208,6 +211,12 @@ Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à 
 | `stg_x3__reglements` | `unique`, `not_null` ; `accepted_values` sur le sens (1, 2) | Un règlement = une ligne | Encaissement positif, décaissement négatif |
 | `fct_reglements` | **Contrat**, clé primaire ; `accepted_values` sur `sens` | encaissement, décaissement | Table lue par l'API et Power BI |
 | `agg_tresorerie_jour` | **Contrat** ; unicité (jour, exercice, compte) ; familles connues | Un solde par compte et par jour | Le cumul repart à chaque exercice : les à-nouveaux reportent déjà le solde |
+| `stg_x3__stock_articles` | Unicité (article, site) ; `relationships` vers les articles | Un article sur un site = une ligne | Le stock valorisé ne compte pas deux fois un article |
+| `stg_x3__mouvements_stock` | Unicité (clé de STOJOU) | Un mouvement = une ligne | La copie incrémentale fusionne par cette clé |
+| | `assert_x3_stock_quantite_valeur_meme_signe` | La valeur a le signe de la quantité | Une sortie de valeur positive serait comptée comme une entrée |
+| `fct_stock_article`, `fct_mouvements_stock` | **Contrats**, clés primaires ; `relationships` vers `dim_article` | Colonnes figées, articles connus | Tables lues par l'API et Power BI |
+| `fct_stock_article` | `assert_stock_cmup_plausible` (avertissement) | Articles qui pèsent plus de 5 % du stock de leur site | 10 articles (en-cours au CMUP aberrant) font 535 M MAD sur 599 M MAD |
+| `snap_stock_jour` | Unicité (jour, article, site) ; `full_refresh=false` | Une photo par article et par jour, jamais effacée | Le stock passé ne se recalcule pas de façon fiable |
 | Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
 
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)

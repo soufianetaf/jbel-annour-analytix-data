@@ -1,0 +1,81 @@
+version: 2
+
+models:
+  - name: fct_stock_article
+    description: >
+      Stock actuel par article × site, valorisé au CMUP.
+      Grain : une ligne = un article sur un site. Définitions : docs/indicateurs/stock_valorise.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [code_article, site]
+    columns:
+      - name: cle_article
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_article')
+                field: cle_article
+      - {name: code_article, data_type: text, data_tests: [not_null]}
+      - {name: site, data_type: text, data_tests: [not_null]}
+      - {name: stock_physique, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: stock_controle, data_type: "numeric(28,10)"}
+      - {name: stock_rejete, data_type: "numeric(28,10)"}
+      - {name: quantite_allouee, data_type: "numeric(28,10)"}
+      - {name: quantite_commandee, data_type: "numeric(28,10)"}
+      - {name: cmup, data_type: "numeric(28,10)", description: Coût moyen unitaire pondéré.}
+      - {name: valeur_stock, data_type: "numeric(28,10)", description: "stock_physique × CMUP, en MAD.", data_tests: [not_null]}
+      - {name: dernier_prix_achat, data_type: "numeric(28,10)"}
+      - {name: date_dernier_achat, data_type: date}
+      - {name: date_derniere_reception, data_type: date}
+      - {name: date_derniere_sortie, data_type: date}
+      - {name: est_dormant, data_type: boolean, description: "En stock, sans sortie depuis 365 jours."}
+      - {name: date_calcul, data_type: date}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: fct_mouvements_stock
+    description: >
+      Mouvements de stock de Sage X3. Grain : un mouvement d'un article sur un site.
+      Quantité et valeur positives à l'entrée, négatives à la sortie.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [site, code_mise_a_jour, code_article, date_mouvement, sequence, indice]
+    columns:
+      - {name: site, data_type: text}
+      - {name: code_mise_a_jour, data_type: integer}
+      - {name: code_article, data_type: text}
+      - {name: date_mouvement, data_type: date, data_tests: [not_null]}
+      - {name: sequence, data_type: bigint}
+      - {name: indice, data_type: bigint}
+      - name: cle_article
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_article')
+                field: cle_article
+      - {name: code_type_mouvement, data_type: integer, description: Type de mouvement X3 (codes à libeller avec le magasin).}
+      - name: sens
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [entrée, sortie, sans quantité]
+      - {name: depot, data_type: text}
+      - {name: code_tiers, data_type: text}
+      - {name: code_type_document, data_type: integer}
+      - {name: numero_document, data_type: text}
+      - {name: ligne_document, data_type: integer}
+      - {name: section_1, data_type: text, description: "Première section analytique (service, centre de coût)."}
+      - {name: section_2, data_type: text}
+      - {name: quantite, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: unite_stock, data_type: text}
+      - {name: valeur, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: date_comptable, data_type: date}
+      - {name: charge_le, data_type: timestamp with time zone}

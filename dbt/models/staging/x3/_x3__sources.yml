@@ -37,3 +37,9 @@ sources:
         description: Exercices comptables (FISCALYEAR).
       - name: paymenth
         description: Règlements (PAYMENTH), en liste fermée, sans RIB ni coordonnées du tiers.
+      - name: itmmvt
+        description: Stock et coût moyen par article × site (ITMMVT), état actuel, en liste fermée.
+      - name: stojou
+        description: >
+          Journal des mouvements de stock (STOJOU), en liste fermée, sans libellé
+          ni champs libres. Incrémental sur UPDDATTIM_0.
