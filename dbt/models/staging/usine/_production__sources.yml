@@ -1,0 +1,30 @@
+version: 2
+
+sources:
+  - name: production
+    description: >
+      Base production_2026 du serveur de l'usine (schéma « production »), seule
+      base de production lue (elle contient déjà l'historique de l'ancienne base).
+      Copiée par ingestion.usine_production, sans nom de chef d'équipe ni session web.
+    schema: raw_production
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 4, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: finposts
+        description: "Fiches de fin de poste."
+      - name: productionposts
+        description: "Réalisé et objectif par zone et fiche de poste."
+      - name: objectifzones
+        description: "Zones de production et objectif par poste."
+      - name: raisons
+        description: "Liste des raisons d'écart."
+      - name: productionpost_raison
+        description: "Raisons d'écart rattachées aux lignes de production."
+      - name: consomations
+        description: "Consommations journalières (énergie, combustibles), saisies en texte."
+      - name: poidsbriques
+        description: "Contrôles de poids des briques (entêtes)."
+      - name: poidsbriques_infos
+        description: "Pesées des briques."

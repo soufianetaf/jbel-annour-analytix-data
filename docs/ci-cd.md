@@ -226,6 +226,10 @@ Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à 
 | | `assert_magasin_gasoil_quantite_plausible` (avertissement) | Bons négatifs ou de plus de 2 000 L | 9 bons aberrants (jusqu'à -449 595 L) fausseraient la consommation |
 | `fct_sorties_magasin`, `fct_gasoil`, `fct_demandes_achat_usine`, `fct_depassements_budget` | **Contrats**, clés primaires ; `relationships` vers `dim_article` | Colonnes figées | Tables lues par l'API et Power BI |
 | Ingestion de l'usine | Contrôle du compte avant lecture : `sa` toléré par dérogation, avec avertissement | Lecture seule, sans verrou | Dérogation du 25/11/2026 (cahier des charges 5.4) |
+| Production (staging usine) | Unicité des identifiants ; `relationships` lignes → fiches (avertissement) | Une fiche, une ligne = une ligne | 20 lignes sans fiche, signalées |
+| `int_production__fiches_dedoublonnees` | **Test unitaire `dedoublonnage_une_fiche_retenue_par_poste`** | Trois saisies du même poste : seule la plus récente est retenue ; fiche supprimée et fiche sans équipe exclues | La règle qui évite de compter un poste plusieurs fois (jusqu'à 20 saisies du même poste) |
+| | Unicité (date, shift, équipe) **parmi les fiches retenues** | Jamais deux fiches retenues pour le même poste, sur les vraies données | Sans elle, le réalisé du monobloc serait surévalué de 15 % |
+| `fct_production_poste`, `fct_fiches_poste` | **Contrats**, clés primaires ; zones connues ; unicité (poste, zone) en avertissement | Colonnes figées, 5 zones | Tables lues par l'API et Power BI |
 | Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
 
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)

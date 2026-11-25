@@ -59,12 +59,20 @@ def colonnes_absentes_de_raw(colonnes_raw: dict[tuple[str, str], set[str]]) -> l
     """
     from dlt.common.normalizers.naming.snake_case import NamingConvention
 
-    from ingestion import usine_magasin, x3_achats, x3_finance, x3_stock, x3_ventes
+    from ingestion import (
+        usine_magasin,
+        usine_production,
+        x3_achats,
+        x3_finance,
+        x3_stock,
+        x3_ventes,
+    )
     from ingestion.x3 import CIBLE_X3
 
     nommage = NamingConvention()
     groupes = [(m.TABLES, CIBLE_X3) for m in (x3_ventes, x3_finance, x3_stock, x3_achats)]
     groupes += [(tables, cible) for _, tables, cible in usine_magasin.COPIES]
+    groupes += [(usine_production.TABLES, usine_production.PRODUCTION)]
     absentes = []
     for tables, cible in groupes:
         for table in tables:

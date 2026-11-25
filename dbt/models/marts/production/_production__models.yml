@@ -1,0 +1,55 @@
+version: 2
+
+models:
+  - name: fct_production_poste
+    description: >
+      Production réalisée contre objectif. Grain : une zone × un poste (date,
+      shift, équipe), fiches retenues seulement (un poste n'est jamais compté
+      deux fois). Définitions : docs/indicateurs/production_postes.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_ligne]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [date_poste, shift, equipe, zone]
+          config:
+            severity: warn
+    columns:
+      - {name: id_ligne, data_type: bigint}
+      - {name: id_fiche, data_type: bigint}
+      - {name: date_poste, data_type: date, data_tests: [not_null]}
+      - {name: shift, data_type: text}
+      - {name: equipe, data_type: text}
+      - name: zone
+        data_type: text
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [monobloc, empileuse, depileuse, depileuse vrac, four]
+      - {name: realise, data_type: "numeric(18,3)"}
+      - {name: objectif, data_type: "numeric(18,3)", description: "Objectif saisi, à défaut objectif de la zone."}
+      - {name: taux_realisation, data_type: "numeric(18,4)", description: "Réalisé / objectif ; vide sans objectif."}
+      - {name: nombre_raisons_ecart, data_type: integer}
+      - {name: raisons_ecart, data_type: text}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: fct_fiches_poste
+    description: "Fiches de fin de poste, retenues ou non, avec le motif d'exclusion. Grain : une fiche."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_fiche]
+    columns:
+      - {name: id_fiche, data_type: bigint}
+      - {name: date_poste, data_type: date}
+      - {name: shift, data_type: text}
+      - {name: equipe, data_type: text}
+      - {name: est_retenue, data_type: boolean, data_tests: [not_null]}
+      - {name: motif_exclusion, data_type: text, description: "supprimée, incomplète ou doublon ; vide si retenue."}
+      - {name: saisies_du_poste, data_type: integer, description: "Nombre de fiches saisies pour ce poste."}
+      - {name: cree_le, data_type: timestamp}

@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: int_production__fiches_dedoublonnees
+    description: >
+      Fiches de fin de poste avec la décision de les retenir. Une seule fiche
+      retenue par poste (date, shift, équipe) : la plus récemment modifiée.
+      Fiches supprimées et incomplètes exclues.
+    data_tests:
+      # Le cœur de la règle : jamais deux fiches retenues pour le même poste
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [date_poste, shift, equipe]
+          config:
+            where: "est_retenue"
+    columns:
+      - name: id_fiche
+        data_tests: [unique, not_null]
+      - name: motif_exclusion
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [supprimée, incomplète, doublon]
+
+unit_tests:
+  - name: dedoublonnage_une_fiche_retenue_par_poste
+    description: >
+      Trois saisies du même poste : seule la plus récemment modifiée est
+      retenue. Une fiche supprimée et une fiche sans équipe sont exclues.
+    model: int_production__fiches_dedoublonnees
+    given:
+      - input: ref('stg_production__fiches_poste')
+        rows:
+          - {id_fiche: 1, date_poste: "2025-12-29", shift: "07h00 - 15h00", equipe: B, modifie_le: "2025-12-29 15:00:00"}
+          - {id_fiche: 2, date_poste: "2025-12-29", shift: "07h00 - 15h00", equipe: B, modifie_le: "2025-12-29 15:30:00"}
+          - {id_fiche: 3, date_poste: "2025-12-29", shift: "07h00 - 15h00", equipe: B, modifie_le: "2025-12-29 15:10:00"}
+          - {id_fiche: 4, date_poste: "2025-12-29", shift: "15h00 - 23h00", equipe: C, modifie_le: "2025-12-29 23:00:00", supprime_le: "2025-12-30 08:00:00"}
+          - {id_fiche: 5, date_poste: "2025-12-29", shift: "23h00 - 07h00", equipe: null, modifie_le: "2025-12-30 07:00:00"}
+    expect:
+      rows:
+        - {id_fiche: 1, est_retenue: false, motif_exclusion: doublon}
+        - {id_fiche: 2, est_retenue: true, motif_exclusion: null}
+        - {id_fiche: 3, est_retenue: false, motif_exclusion: doublon}
+        - {id_fiche: 4, est_retenue: false, motif_exclusion: supprimée}
+        - {id_fiche: 5, est_retenue: false, motif_exclusion: incomplète}

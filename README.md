@@ -407,6 +407,7 @@ uv run python -m ingestion.x3_finance               # copie incrémentale des é
 uv run python -m ingestion.x3_stock                 # stock par article et mouvements (--complet chaque semaine)
 uv run python -m ingestion.x3_achats                # demandes, commandes, réceptions, factures fournisseurs
 uv run python -m ingestion.usine_magasin            # applications Magasin et espace_magasin (serveur de l'usine)
+uv run python -m ingestion.usine_production         # fiches de poste et réalisé par zone (production_2026)
 uv run python -m infra.ci.verifier_types_staging     # types des colonnes nettoyées en staging
 cd dbt
 uv run --env-file ../.env dbt deps                  # installe les bibliothèques dbt

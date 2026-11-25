@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: stg_production__fiches_poste
+    description: "Fiches de fin de poste, telles que saisies (doublons compris). Grain : une fiche."
+    columns:
+      - name: id_fiche
+        data_tests: [unique, not_null]
+
+  - name: stg_production__lignes_production
+    description: "Réalisé et objectif par zone et fiche. Grain : une zone × une fiche."
+    columns:
+      - name: id_ligne
+        data_tests: [unique, not_null]
+      - name: id_fiche
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_production__fiches_poste')
+                field: id_fiche
+              config:
+                # 20 lignes sans fiche au 25/11/2026 : signalées, pas bloquantes
+                severity: warn
+
+  - name: stg_production__zones
+    description: "Zones de production. Grain : une zone."
+    columns:
+      - name: id_zone
+        data_tests: [unique, not_null]
+
+  - name: stg_production__raisons_ecart
+    description: "Raisons d'écart par ligne de production. Grain : un lien ligne × raison."
+    columns:
+      - name: id_lien
+        data_tests: [unique, not_null]
