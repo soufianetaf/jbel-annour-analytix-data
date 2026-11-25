@@ -8,8 +8,8 @@
 #  Le détail et la raison de chaque contrôle : docs/ci-cd.md
 #
 #  Les contrôles s'ajoutent au fil des étapes du projet :
-#    - maintenant  : sécurité du dépôt (fichiers interdits, secrets)
-#    - étape 2     : qualité du code Python (ruff) et tests (pytest)
+#    - étape 1     : sécurité du dépôt (fichiers interdits, secrets)
+#    - étape 2     : dépendances figées (uv), style (ruff), tests (pytest)
 #    - entrepôt    : dbt (compilation, tests, tests unitaires)
 #    - API         : tests d'accès par rôle
 # ════════════════════════════════════════════════════════════════
@@ -70,3 +70,27 @@ jobs:
       - name: Chercher des secrets
         # --redact : la valeur trouvée n'est jamais affichée dans les journaux
         run: gitleaks git --redact --verbose .
+
+  # ─── 3. Code Python : dépendances, style, tests ────────────────
+  python:
+    name: Code Python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Installer Python et les dépendances figées
+        # --locked : échoue si uv.lock ne correspond plus à pyproject.toml
+        run: uv sync --locked
+
+      - name: Style et erreurs courantes (ruff check)
+        run: uv run ruff check --output-format=github
+
+      - name: Mise en forme (ruff format)
+        run: uv run ruff format --check
+
+      - name: Tests unitaires (pytest)
+        run: uv run pytest

@@ -99,13 +99,39 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 
 **Si gitleaks trouve un secret :** le retirer du code ne suffit pas. Il faut considérer le mot de passe comme connu, **le faire changer** par l'équipe informatique, puis nettoyer l'historique.
 
+#### Code Python (uv, ruff, pytest)
+
+| Contrôle | Ce qu'il vérifie | Pourquoi |
+|---|---|---|
+| **Dépendances figées** (`uv sync --locked`) | Le fichier `uv.lock` correspond exactement à `pyproject.toml` | Tout le monde (poste, CI, serveur) installe les mêmes versions, à la lettre près. Si quelqu'un ajoute une bibliothèque sans mettre à jour le verrou, la CI échoue |
+| **Style et erreurs** (`ruff check`) | Imports inutiles, variables jamais utilisées, syntaxe dépassée, pièges connus de Python | Ces erreurs sont détectées avant l'exécution, sans serveur. Un code homogène se relit plus vite |
+| **Mise en forme** (`ruff format --check`) | Le code est mis en forme selon une seule règle (indentation, guillemets, longueur des lignes) | Les relectures portent sur le fond, pas sur des espaces. Corriger en local avec `uv run ruff format` |
+| **Tests unitaires** (`pytest`) | Les fonctions Python donnent le bon résultat sur des cas connus | Voir le détail des tests ci-dessous |
+
+**Les tests en place :**
+
+| Fichier | Ce qu'il teste | Pourquoi c'est important |
+|---|---|---|
+| `tests/test_config.py` | Chaque source lit ses variables avec son préfixe (`X3_`, `JBELRH_`, `USINE_`), sans prendre celles d'une autre | Se connecter au mauvais serveur avec le mauvais compte serait silencieux |
+| | Le mot de passe n'apparaît jamais dans l'affichage de la configuration | Un `print` ou un message d'erreur ne doit jamais divulguer un mot de passe dans un terminal ou un journal |
+| | Une valeur vide (`X3_PORT=`) vaut « non renseignée » | Le modèle `.env.example` laisse des champs vides |
+| | Un compte SQL sans mot de passe, ou un environnement inconnu (`production` au lieu de `prod`), est refusé dès le démarrage | Une erreur de configuration doit arrêter le programme tout de suite, avec un message clair, et non échouer plus loin |
+| `tests/test_sqlserver.py` | La connexion est demandée en lecture seule, chiffrée, et identifiée par le nom « Jbel Annour Analytix » | L'équipe informatique doit pouvoir reconnaître nos sessions sur ses serveurs |
+| | Serveur avec port, instance nommée (`serveur\INSTANCE`), choix de la base, authentification Windows | Ce sont les cas réels des trois serveurs sources |
+| | Un mot de passe contenant `;`, `}`, `=` ou une espace est protégé | Sans protection, un `;` coupe la chaîne de connexion : la connexion échoue, ou pire, la suite est lue comme un autre paramètre |
+| | Le contrôle des droits accepte un compte en lecture seule et **refuse** un compte administrateur (`sa`, `sysadmin`, `db_owner`) ou qui peut écrire (`db_datawriter`, `INSERT`, `UPDATE`, `DELETE`…) | Règle d'or n° 1 : on ne modifie jamais une source. Cette protection doit venir du serveur, et on vérifie qu'elle est bien là |
+| | Un droit d'écriture accordé **sur le schéma du dossier X3** (`BASE1`) est refusé | Dans Sage X3, un compte peut écrire dans un dossier sans être membre d'aucun rôle : le contrôle des rôles seul ne le verrait pas |
+
+**Ce que la CI ne teste pas :** la vraie connexion aux serveurs, qu'elle ne peut pas joindre. Elle se vérifie sur le poste, avec :
+
+```powershell
+uv run python -m ingestion.verifier_connexions
+```
+
 ### Contrôles prévus, ajoutés au fil des étapes
 
 | Étape | Contrôle | Ce qu'il vérifiera | Pourquoi |
 |---|---|---|---|
-| Socle Python | **ruff** (lint et format) | Style du code, imports inutiles, erreurs courantes | Un code homogène se relit plus vite ; ruff attrape des bugs avant l'exécution |
-| Socle Python | **pytest** | Tests unitaires des fonctions Python (nettoyage, conversions, configuration) | Une fonction de nettoyage (ex. gasoil saisi en texte) doit donner le bon résultat sur des cas connus |
-| Socle Python | **Verrou des dépendances** (`uv lock --check`) | Le fichier `uv.lock` correspond à `pyproject.toml` | Tout le monde, CI et serveur compris, installe exactement les mêmes versions |
 | Entrepôt (dbt) | **dbt parse / compile** | Les modèles SQL sont valides et leurs dépendances cohérentes | Une référence à une table inexistante est détectée avant le déploiement |
 | Entrepôt (dbt) | **Tests unitaires dbt** | Une règle métier donne le bon résultat sur des lignes d'essai (ex. signe des avoirs, dates 1753) | Les pièges connus des données (README, partie 14) restent corrigés à chaque modification |
 | Entrepôt (dbt) | **dbt build sur une base PostgreSQL vide** | Toutes les tables se construisent et tous les tests passent, sur des données d'essai | Vérifie la chaîne complète sans accès aux vraies sources |

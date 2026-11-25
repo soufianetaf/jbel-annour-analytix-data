@@ -392,11 +392,14 @@ Outils à installer (tous fonctionnent sous Windows, sans Docker) :
 
 **Démarrage** (commandes complétées au fur et à mesure que le code arrive) :
 
-```bash
+```powershell
 git clone <adresse du dépôt>
-cd Jbel_Annour_Analytix
-copy .env.example .env      # puis remplir .env avec vos accès
-uv sync                     # installe les dépendances Python
+cd jbel-annour-analytix-data
+git switch dev                                   # branche de travail
+copy .env.example .env                           # puis remplir .env avec vos accès
+uv sync                                          # installe Python 3.12 et les dépendances figées
+uv run python -m ingestion.verifier_connexions   # teste les sources et leurs droits
+uv run pytest                                    # lance les tests
 ```
 
 ---
