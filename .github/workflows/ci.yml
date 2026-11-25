@@ -1,0 +1,72 @@
+# ════════════════════════════════════════════════════════════════
+#  Intégration continue (CI)
+# ════════════════════════════════════════════════════════════════
+#  Se lance à chaque pull request vers dev ou main, et à chaque push
+#  sur ces deux branches. Une pull request ne peut être fusionnée que
+#  si tous les contrôles sont verts (règle de protection des branches).
+#
+#  Le détail et la raison de chaque contrôle : docs/ci-cd.md
+#
+#  Les contrôles s'ajoutent au fil des étapes du projet :
+#    - maintenant  : sécurité du dépôt (fichiers interdits, secrets)
+#    - étape 2     : qualité du code Python (ruff) et tests (pytest)
+#    - entrepôt    : dbt (compilation, tests, tests unitaires)
+#    - API         : tests d'accès par rôle
+# ════════════════════════════════════════════════════════════════
+
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+# Droits minimaux : la CI lit le code, elle n'écrit rien.
+permissions:
+  contents: read
+
+# Si on pousse deux fois de suite sur la même branche, on annule
+# l'exécution précédente au lieu de les faire tourner toutes les deux.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── 1. Fichiers interdits ─────────────────────────────────────
+  verifier-depot:
+    name: Fichiers interdits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Vérifier le contenu du dépôt
+        run: python infra/ci/verifier_depot.py
+
+  # ─── 2. Secrets dans le code et l'historique ───────────────────
+  secrets:
+    name: Recherche de secrets
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.21.2"
+    steps:
+      - name: Récupérer le code avec tout l'historique
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # un secret supprimé reste dans l'historique : on le cherche aussi
+
+      - name: Installer gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Chercher des secrets
+        # --redact : la valeur trouvée n'est jamais affichée dans les journaux
+        run: gitleaks git --redact --verbose .

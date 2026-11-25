@@ -1,0 +1,67 @@
+# ─── Secrets : ne jamais versionner ──────────────────────────────
+# Le fichier .env contient les mots de passe et adresses des serveurs.
+# Seul le modèle .env.example (sans aucune valeur secrète) est versionné.
+.env
+.env.*
+!.env.example
+
+# ─── Documents et fichiers confidentiels ─────────────────────────
+# Cahier des charges (adresses de serveurs, failles de sécurité)
+docs/confidentiel/
+# Inventaires détaillés des bases sources (structure de chaque table)
+exploration/
+# Extractions ou exports de données ponctuels : jamais dans Git
+*.csv
+*.xlsx
+*.parquet
+# Exception : petites tables de référence dbt (sans donnée sensible)
+!dbt/seeds/*.csv
+
+# ─── Python et uv ────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# ─── dlt (ingestion) ─────────────────────────────────────────────
+# Identifiants locaux de dlt et état des pipelines
+.dlt/secrets.toml
+.dlt/pipelines/
+
+# ─── dbt ─────────────────────────────────────────────────────────
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+# Le profil de connexion local reste hors de Git
+dbt/profiles.yml
+
+# ─── Dagster ─────────────────────────────────────────────────────
+# Historique des exécutions et stockage local
+orchestration/.dagster_home/
+.tmp_dagster_home_*/
+
+# ─── Journaux ────────────────────────────────────────────────────
+logs/
+*.log
+
+# ─── Éditeurs et système ─────────────────────────────────────────
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ─── Vidéos de présentation : hors du dépôt ──────────────────────
+# Supports de communication, pas du code de la plateforme de données.
+video/
+video_direction/
