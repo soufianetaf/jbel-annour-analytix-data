@@ -1,0 +1,132 @@
+# Branches, CI/CD et contrôles automatiques
+
+Ce document explique comment le code passe du poste du développeur à la production, et **chaque contrôle automatique** qui le vérifie en chemin : ce qu'il fait, et pourquoi il existe.
+
+---
+
+## 1. Les branches
+
+```
+dev  ──push──►  CI      (travail quotidien, contrôlé à chaque push)
+ │
+ └──PR──►  main  ──►  production
+```
+
+Le projet n'utilise que **deux branches**, sans branche `feature`.
+
+| Branche | Rôle | Qui écrit dessus |
+|---|---|---|
+| `dev` | La branche **de travail** : tous les commits du quotidien arrivent ici | Le développeur, directement (`git push`) |
+| `main` | La version **en production**. Elle fonctionne toujours. | Personne directement : uniquement par pull request depuis `dev` |
+
+**Pourquoi deux branches ?** `dev` sert de sas : on y travaille, la CI y vérifie chaque push, et on peut y casser quelque chose sans conséquence. On ne passe en production (`main`) qu'un ensemble cohérent, validé par le service concerné.
+
+**Pourquoi pas de branche `feature` ?** Avec une à deux personnes sur le projet, les branches `feature` ajoutent des fusions sans apporter grand-chose. La contrepartie : `dev` peut être temporairement rouge, et c'est à corriger avant tout passage en production.
+
+### Le déroulé
+
+1. Travailler sur `dev`, à jour :
+   ```powershell
+   git switch dev
+   git pull
+   ```
+2. Faire un commit par partie (messages en français, à l'impératif), puis pousser :
+   ```powershell
+   git push
+   ```
+3. La CI se lance sur `dev`. **Si elle est rouge, on corrige tout de suite**, par un nouveau commit sur `dev`.
+4. Quand un ensemble est prêt (fin d'un module, recette faite) : **pull request `dev` → `main`** sur GitHub. La CI se relance ; la fusion n'est possible que si elle est verte. La fusion déclenche ensuite le déploiement en production (CD, voir partie 4).
+5. Après la fusion, `dev` et `main` sont identiques ; on continue sur `dev`.
+
+---
+
+## 2. Protéger les branches sur GitHub
+
+À faire une fois, dans **Settings → Branches → Add branch ruleset** (ou *Branch protection rules*).
+
+**Pour `main` :**
+
+| Règle | Pourquoi |
+|---|---|
+| *Require a pull request before merging* | Personne ne pousse directement en production : tout passe par `dev` |
+| *Require status checks to pass* → cocher **Fichiers interdits** et **Recherche de secrets** | La fusion est bloquée si un contrôle échoue |
+| *Require branches to be up to date before merging* | Les contrôles tournent sur le code tel qu'il sera après la fusion |
+| *Block force pushes* et *Restrict deletions* | L'historique de production ne peut être ni réécrit ni supprimé |
+
+**Pour `dev` :** seulement *Block force pushes* et *Restrict deletions*. Les push directs restent autorisés, puisque c'est la branche de travail.
+
+Les contrôles n'apparaissent dans la liste qu'après leur **première exécution**. Poussez donc `dev` une première fois avant de régler la protection de `main`.
+
+---
+
+## 3. La CI : les contrôles automatiques
+
+La CI (*intégration continue*) est définie dans [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). Elle tourne sur les serveurs de GitHub à chaque pull request et à chaque push sur `dev` ou `main`.
+
+**Limite importante :** les serveurs de GitHub **ne peuvent pas joindre le réseau de l'entreprise**. La CI ne lit donc jamais Sage X3 ni les bases de l'usine. Elle teste le code avec des données d'essai ; les tests sur les vraies données tournent dans l'entrepôt, à chaque chargement, lancés par Dagster.
+
+### Contrôles en place
+
+#### Fichiers interdits (`infra/ci/verifier_depot.py`)
+
+Ce script lit la liste des fichiers suivis par Git et échoue s'il trouve :
+
+| Contrôle | Ce qu'il détecte | Pourquoi |
+|---|---|---|
+| `[secret]` | Un fichier `.env`, `.env.prod`… (seul `.env.example` est permis) | Ces fichiers contiennent les mots de passe des serveurs. Règle d'or n° 3 |
+| `[confidentiel]` | Un fichier de `docs/confidentiel/` ou `exploration/` | Le cahier des charges décrit des serveurs et des failles de sécurité ; les inventaires décrivent chaque table |
+| `[donnees]` | Un `.csv`, `.xlsx`, `.parquet`, `.bak`… hors de `dbt/seeds/` | Une extraction de données posée par erreur dans le dossier peut contenir des données personnelles (loi 09-08). Règle d'or n° 2 |
+| `[taille]` | Un fichier de plus de 5 Mo | Presque toujours une extraction ou un fichier généré ; un dépôt lourd est lent à cloner, et on ne peut plus l'alléger après coup |
+| `[adresse]` | Une adresse IP de réseau privé (`192.168.…`, `10.…`, `172.16-31.…`) dans un fichier texte | Les adresses des serveurs vont dans `.env`, jamais dans le code. Le message d'erreur donne le fichier et la ligne, sans afficher l'adresse |
+
+À lancer en local avant de pousser :
+
+```powershell
+python infra/ci/verifier_depot.py
+```
+
+Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle est le **second filet** : il attrape un `git add -f`, un `.gitignore` modifié ou un fichier mal nommé.
+
+#### Recherche de secrets (gitleaks)
+
+[gitleaks](https://github.com/gitleaks/gitleaks) parcourt **tout l'historique Git** à la recherche de mots de passe, clés d'API, jetons et chaînes de connexion, d'après des centaines de motifs connus.
+
+| Point | Explication |
+|---|---|
+| Pourquoi tout l'historique | Supprimer un mot de passe dans un nouveau commit ne l'efface pas : il reste lisible dans les commits précédents |
+| Pourquoi en plus du script | Le script repère des **fichiers** interdits ; gitleaks repère un **secret à l'intérieur** d'un fichier autorisé, par exemple un mot de passe copié dans un script Python |
+| `--redact` | La valeur trouvée n'est jamais affichée dans les journaux de la CI, qui sont lisibles par tous ceux qui ont accès au dépôt |
+
+**Si gitleaks trouve un secret :** le retirer du code ne suffit pas. Il faut considérer le mot de passe comme connu, **le faire changer** par l'équipe informatique, puis nettoyer l'historique.
+
+### Contrôles prévus, ajoutés au fil des étapes
+
+| Étape | Contrôle | Ce qu'il vérifiera | Pourquoi |
+|---|---|---|---|
+| Socle Python | **ruff** (lint et format) | Style du code, imports inutiles, erreurs courantes | Un code homogène se relit plus vite ; ruff attrape des bugs avant l'exécution |
+| Socle Python | **pytest** | Tests unitaires des fonctions Python (nettoyage, conversions, configuration) | Une fonction de nettoyage (ex. gasoil saisi en texte) doit donner le bon résultat sur des cas connus |
+| Socle Python | **Verrou des dépendances** (`uv lock --check`) | Le fichier `uv.lock` correspond à `pyproject.toml` | Tout le monde, CI et serveur compris, installe exactement les mêmes versions |
+| Entrepôt (dbt) | **dbt parse / compile** | Les modèles SQL sont valides et leurs dépendances cohérentes | Une référence à une table inexistante est détectée avant le déploiement |
+| Entrepôt (dbt) | **Tests unitaires dbt** | Une règle métier donne le bon résultat sur des lignes d'essai (ex. signe des avoirs, dates 1753) | Les pièges connus des données (README, partie 14) restent corrigés à chaque modification |
+| Entrepôt (dbt) | **dbt build sur une base PostgreSQL vide** | Toutes les tables se construisent et tous les tests passent, sur des données d'essai | Vérifie la chaîne complète sans accès aux vraies sources |
+| Entrepôt (dbt) | **Contrats des tables `marts`** | Colonnes et types des tables lues par Power BI et l'API inchangés | Une colonne renommée ne doit jamais casser un rapport sans prévenir |
+| Entrepôt (dbt) | **Colonnes sensibles** | Aucune colonne nommée CIN, RIB, salaire, mot de passe, jeton… dans les modèles | Critère d'acceptation n° 4 du cahier des charges |
+| API | **Tests d'accès par rôle** | Pour chaque rôle, l'API refuse toute donnée hors de son périmètre | Critère d'acceptation n° 3 : un représentant ne voit jamais les clients d'un autre |
+| API | **Schéma OpenAPI** | Le contrat de l'API n'a pas changé sans le signaler | L'interface web, dans un autre dépôt, en dépend |
+
+Chaque contrôle sera expliqué ici au moment de son ajout.
+
+---
+
+## 4. Le CD : le déploiement
+
+Le CD (*déploiement continu*) installe automatiquement la nouvelle version sur le serveur après une fusion dans `main`.
+
+**Ce qui est prévu :**
+
+- Le serveur de production est **interne** : GitHub ne peut pas s'y connecter. On installe donc sur ce serveur un **runner GitHub auto-hébergé** : un petit service Windows qui va lui-même chercher le travail chez GitHub (connexion sortante uniquement, aucun port à ouvrir).
+- À chaque fusion dans `main`, ce runner : récupère le code, installe les dépendances (`uv sync`), lance `dbt build` sur `dw_prod`, puis redémarre les services Dagster et API.
+- Les mots de passe de production restent dans le `.env` du serveur, jamais dans GitHub.
+- Si une étape échoue, la version précédente reste en service.
+
+**Quand :** dès que le serveur de production est choisi (question ouverte, README partie 16). En attendant, le déploiement se fait à la main en suivant `infra/`.

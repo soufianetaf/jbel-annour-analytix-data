@@ -293,7 +293,8 @@ Jbel_Annour_Analytix/
 │   └── marts/           finance/, achats/, production/, maintenance/...
 ├── orchestration/       Dagster : quand et dans quel ordre tout lancer
 ├── api/                 FastAPI : données et droits par rôle
-├── infra/               installation sur le serveur, sauvegardes
+├── infra/               installation sur le serveur, sauvegardes, scripts de la CI
+├── .github/workflows/   CI/CD : contrôles automatiques à chaque pull request
 └── docs/                fiches indicateurs, décisions, schémas
     └── confidentiel/    cahier des charges complet, jamais versionné
 ```
@@ -327,10 +328,21 @@ On ne construit pas « toute l’ingestion », puis « tout dbt », puis « tout
 
 ### Git
 
-- La branche `main` contient toujours une version qui fonctionne.
-- Chaque partie se développe sur une branche, puis est relue avant d’être fusionnée.
+```
+dev  ──PR──►  main  ──►  production
+```
+
+- Deux branches seulement, sans branche `feature`.
+- `dev` est la branche **de travail** : on y commite et on y pousse directement ; la CI vérifie chaque push.
+- `main` est la version **en production**. On n’y pousse jamais directement : un ensemble validé passe de `dev` à `main` par une pull request, qui déclenche le déploiement.
 - Messages de commit en français, à l’impératif : « Ajoute l’extraction des échéances ».
 - **Aucun secret dans Git**, jamais : mots de passe et adresses vont dans `.env`, qui est ignoré.
+
+### CI/CD
+
+À chaque push sur `dev` et à chaque pull request vers `main`, GitHub lance des **contrôles automatiques** (fichiers interdits, recherche de secrets, puis au fil du projet : qualité du code, tests Python, tests dbt, tests d’accès par rôle). Une pull request vers `main` dont un contrôle est rouge ne peut pas être fusionnée.
+
+Chaque contrôle, ce qu’il vérifie et pourquoi : **[docs/ci-cd.md](docs/ci-cd.md)**.
 
 ### Deux environnements
 
