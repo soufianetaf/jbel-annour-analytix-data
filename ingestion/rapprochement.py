@@ -113,14 +113,21 @@ def _connexions():
 
 def rapprocher_x3_ventes() -> bool:
     """Rapproche les tables copiées par ingestion.x3_ventes. Vrai si tout est conforme."""
-    from ingestion.x3_ventes import SCHEMA_RAW, TABLES
+    from ingestion.x3_ventes import TABLES
+
+    return rapprocher_tables(TABLES)
+
+
+def rapprocher_tables(tables) -> bool:
+    """Rapproche des tables copiées dans raw_x3 avec Sage X3. Vrai si tout est conforme."""
+    from ingestion.x3 import SCHEMA_RAW
 
     source, contexte_x3, connexion_dw = _connexions()
     resultats = []
     try:
         with contexte_x3 as connexion_x3, connexion_dw.cursor() as curseur_dw:
             curseur_x3 = connexion_x3.cursor()
-            for table in TABLES:
+            for table in tables:
                 resultats.append(
                     Resultat(
                         table=table.nom,
@@ -197,6 +204,56 @@ def rapprocher_ca_annuel() -> bool:
     return all(ok for *_, ok in lignes)
 
 
+# ─── Créances et dettes ouvertes : Sage X3 / marts.fct_echeances ─────
+#
+# Même règle des deux côtés (docs/indicateurs/finance_creances.md) :
+#   reste à payer = (montant - payé) × signe, échéances ouvertes (≥ 0,01 MAD)
+
+REQUETE_RESTES_X3 = """
+SELECT CASE BPRTYP_0 WHEN 1 THEN 'client' WHEN 2 THEN 'fournisseur' END AS type_tiers,
+       COUNT(*) AS echeances,
+       SUM((CAST(AMTLOC_0 AS DECIMAL(28, 4)) - CAST(PAYLOC_0 AS DECIMAL(28, 4))) * SNS_0) AS reste
+FROM {dossier}.GACCDUDATE
+WHERE ABS(AMTLOC_0 - PAYLOC_0) >= 0.01
+  AND LTRIM(RTRIM(NUM_0)) <> ''
+  AND BPRTYP_0 IN (1, 2)
+GROUP BY BPRTYP_0
+"""
+
+REQUETE_RESTES_ENTREPOT = """
+SELECT type_tiers, count(*), sum(reste_a_payer)
+FROM marts.fct_echeances
+WHERE est_ouverte
+GROUP BY type_tiers
+"""
+
+
+def rapprocher_creances() -> bool:
+    """Restes à payer ouverts, clients et fournisseurs : Sage X3 contre l'entrepôt."""
+    source, contexte_x3, connexion_dw = _connexions()
+    try:
+        with contexte_x3 as connexion_x3, connexion_dw.cursor() as curseur_dw:
+            curseur_x3 = connexion_x3.cursor()
+            curseur_x3.execute(REQUETE_RESTES_X3.format(dossier=_id(source.dossier)))
+            x3 = {t: Mesure(int(n), Decimal(m)) for t, n, m in curseur_x3.fetchall()}
+            curseur_dw.execute(REQUETE_RESTES_ENTREPOT)
+            dw = {t: Mesure(int(n), Decimal(m)) for t, n, m in curseur_dw.fetchall()}
+    finally:
+        connexion_dw.close()
+
+    resultats = [
+        Resultat(
+            table=t,
+            source=x3.get(t, Mesure(0, Decimal(0))),
+            entrepot=dw.get(t, Mesure(0, Decimal(0))),
+        )
+        for t in ("client", "fournisseur")
+    ]
+    print("\nÉchéances ouvertes : nombre et reste à payer (MAD)")
+    afficher(resultats)
+    return all(r.conforme for r in resultats)
+
+
 def _identifiants_psycopg(entrepot) -> dict:
     ident = entrepot.identifiants_dlt()
     return {
@@ -215,13 +272,16 @@ def main(arguments: list[str] | None = None) -> int:
     parseur = argparse.ArgumentParser(description="Rapprochements chiffrés avec Sage X3")
     parseur.add_argument("--raw", action="store_true", help="copies raw_x3 contre X3")
     parseur.add_argument("--ca", action="store_true", help="CA net par année contre X3")
+    parseur.add_argument("--creances", action="store_true", help="restes à payer ouverts contre X3")
     options = parseur.parse_args(arguments)
-    tout = not (options.raw or options.ca)
+    tout = not (options.raw or options.ca or options.creances)
     conforme = True
     if options.raw or tout:
         conforme &= rapprocher_x3_ventes()
     if options.ca or tout:
         conforme &= rapprocher_ca_annuel()
+    if options.creances or tout:
+        conforme &= rapprocher_creances()
     return 0 if conforme else 1
 
 

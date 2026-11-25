@@ -142,3 +142,39 @@ models:
           - not_null
       - name: poids_unitaire
         description: Poids d'une unité de stock, dans unite_poids. Vide si non renseigné (0 dans X3).
+
+  - name: stg_x3__echeances
+    description: >
+      Échéances de Sage X3 (clients et fournisseurs), nettoyées.
+      Grain : une ligne = une échéance. Montants positifs, sens dans « signe ».
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [type_piece, numero_piece, ligne_piece, numero_echeance]
+    columns:
+      - name: code_type_tiers
+        description: "1 client, 2 fournisseur (BPRTYP_0)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+      - name: tiers
+        data_tests: [not_null]
+      - name: date_echeance
+        data_tests: [not_null]
+      - name: signe
+        description: "1 ou -1 (SNS_0)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, -1]
+                quote: false
+      - name: montant
+        description: Montant de l'échéance en MAD (AMTLOC_0), positif.
+        data_tests: [not_null]
+      - name: paye
+        description: Montant déjà payé en MAD (PAYLOC_0).
+        data_tests: [not_null]
+      - name: code_lettrage
+        description: "1 non lettrée, 2 lettrée (FLGCLE_0)."

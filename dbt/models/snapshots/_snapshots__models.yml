@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: snap_echeances_ouvertes
+    description: >
+      Photo quotidienne des échéances ouvertes (clients et fournisseurs).
+      Grain : une ligne = une échéance ouverte × un jour de photo.
+      Jamais reconstruite (full_refresh=false) : l'historique ne se recalcule pas.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              [date_photo, type_piece, numero_piece, ligne_piece, numero_echeance]
+    columns:
+      - name: date_photo
+        description: Jour de la photo.
+        data_tests: [not_null]
+      - name: reste_a_payer
+        data_tests: [not_null]

@@ -152,3 +152,37 @@ def test_annee_absente_de_l_entrepot_detectee() -> None:
     lignes = comparer_ca({2025: Decimal(100), 2026: Decimal(50)}, {2026: Decimal(50)})
 
     assert lignes[0] == (2025, Decimal(100), Decimal(0), False)
+
+
+# ─── Moteur commun et finance ───────────────────────────────────────
+
+
+def test_table_incrementale_sans_sa_date_de_modification_refusee() -> None:
+    # Sans la colonne de date copiée, la copie incrémentale ne pourrait pas reprendre
+    from ingestion.x3 import TableX3, verifier_tables
+
+    table = TableX3(nom="T", cle=("NUM_0",), incremental="UPDDATTIM_0", seulement=("NUM_0",))
+
+    with pytest.raises(ValueError, match="UPDDATTIM_0"):
+        verifier_tables((table,), {"T": ["NUM_0", "UPDDATTIM_0"]})
+
+
+def test_table_sans_sa_cle_refusee() -> None:
+    # Sans la clé, la fusion incrémentale créerait des doublons
+    from ingestion.x3 import TableX3, verifier_tables
+
+    table = TableX3(nom="T", cle=("NUM_0", "LIG_0"), seulement=("NUM_0",))
+
+    with pytest.raises(ValueError, match="LIG_0"):
+        verifier_tables((table,), {"T": ["NUM_0", "LIG_0"]})
+
+
+def test_echeances_copiees_en_incremental_avec_cle_complete() -> None:
+    from ingestion.x3_finance import TABLES as TABLES_FINANCE
+
+    echeances = TABLES_FINANCE[0]
+
+    assert echeances.incremental == "UPDDATTIM_0"
+    assert echeances.lag_jours >= 1
+    assert echeances.cle == ("TYP_0", "NUM_0", "LIG_0", "DUDLIG_0")
+    assert set(echeances.cle) <= set(echeances.seulement)

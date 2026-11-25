@@ -36,3 +36,6 @@ models:
     marts:
       +schema: marts
       +materialized: table
+    # Photos périodiques des états que Sage X3 ne garde pas (stock, créances…)
+    snapshots:
+      +schema: snapshots

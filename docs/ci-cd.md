@@ -136,6 +136,7 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 | | La banque de paiement (`PAYBAN_0`) n'est jamais copiée | Donnée bancaire |
 | | Le rapprochement détecte une ligne manquante, un écart de montant d'un centime ou plus, un doublon de clé ; il tolère moins d'un centime | Critère d'acceptation n° 1 : écart inférieur à 0,01 MAD, nul pour les comptages |
 | | Une liste fermée ne copie que les colonnes choisies ; elle reste soumise au contrôle des colonnes sensibles ; la fiche client ne contient ni CIN ni banque | Une colonne ajoutée plus tard dans X3 n'entre jamais sans décision |
+| | Une table incrémentale dont la date de modification ou la clé ne serait pas copiée est refusée ; les échéances sont copiées en incrémental, avec leur clé complète | Sans la date, la copie ne reprendrait pas ; sans la clé, la fusion créerait des doublons |
 | `tests/test_yaml_dbt.py` | Les YAML de dbt sont valides, et aucune description n'a été coupée par une virgule dans `{ … }` | Une description coupée crée une clé fantôme sans aucune erreur visible |
 | `tests/test_sqlserver.py` | La requête de lecture des données envoyée par dlt contient `WITH (NOLOCK)` | Règle d'or n° 7 : lire Sage X3 sans poser ni attendre de verrou |
 
@@ -144,6 +145,7 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 ```powershell
 uv run python -m ingestion.x3_ventes          # copies raw_x3 contre X3 (lignes, montants, doublons)
 uv run python -m ingestion.rapprochement --ca # CA net par année : Sage X3 contre marts.fct_ventes
+uv run python -m ingestion.rapprochement --creances # restes à payer ouverts, clients et fournisseurs
 ```
 
 Le rapprochement du CA calcule le même indicateur des deux côtés, mais par deux chemins : les **entêtes** dans Sage X3, les **lignes** dans l'entrepôt. Écart toléré : moins de 0,01 MAD par année (critère d'acceptation n° 1).
@@ -181,6 +183,14 @@ Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à 
 | | `accepted_values` sur `type_facture` | FAC, AVF, AVR (jamais PRF) | Les pro forma n'entrent jamais dans le CA |
 | | Test unitaire `ventes_avoir_negatif_et_pro_forma_exclue` | Sur des lignes d'essai : un avoir devient négatif, une pro forma disparaît | Les deux règles qui font le CA net, prouvées indépendamment des données |
 | | `assert_ventes_ca_egal_entetes` | CA par année depuis les **lignes** (fct_ventes) = CA depuis les **entêtes** (staging), au centime | Deux chemins indépendants vers le même chiffre : une jointure qui perd ou duplique des lignes est détectée |
+| `stg_x3__echeances` | Unicité (type, pièce, ligne, échéance) | Une échéance = une ligne | La copie incrémentale fusionne par cette clé : un doublon signalerait une fusion ratée |
+| | `accepted_values` sur type de tiers (1, 2) et signe (1, -1) | Valeurs connues seulement | Le reste à payer et le partage clients / fournisseurs en dépendent |
+| `fct_echeances` | **Contrat**, clé primaire | Colonnes et types figés | Table lue par l'API et Power BI |
+| | `relationships` vers `dim_client` (avertissement) | Chaque échéance client a sa fiche client | Les créances doivent se lire par client |
+| | `accepted_values` sur `tranche_retard` | Les 7 tranches de la fiche indicateur, rien d'autre | Une tranche mal écrite disparaîtrait de la balance âgée |
+| | Test unitaire `echeances_reste_signe_et_tranches` | Date du jour figée au 30/06/2026 : reste à payer signé, avoir négatif, échéance soldée sans tranche, bornes 30 / 31 jours | La balance âgée est juste aux limites des tranches, quel que soit le jour où le test tourne |
+| `snap_echeances_ouvertes` | Unicité (jour, échéance) | Une photo par échéance et par jour | Relancer dbt dans la journée remplace la photo du jour sans la doubler |
+| | `full_refresh=false` | Même `--full-refresh` ne reconstruit pas la table | Les photos passées ne se recalculent pas : les effacer serait une perte définitive |
 | Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
 
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)

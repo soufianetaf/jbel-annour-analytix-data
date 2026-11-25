@@ -1,0 +1,102 @@
+version: 2
+
+models:
+  - name: fct_echeances
+    description: >
+      Échéances clients et fournisseurs de Sage X3, état actuel.
+      Grain : une ligne = une échéance. Montants signés en MAD.
+      reste_a_payer positif = le tiers nous doit. Balance âgée à date_calcul.
+      Définitions : docs/indicateurs/finance_creances.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [type_piece, numero_piece, ligne_piece, numero_echeance]
+    columns:
+      - {name: type_piece, data_type: text, data_tests: [not_null]}
+      - {name: numero_piece, data_type: text, data_tests: [not_null]}
+      - {name: ligne_piece, data_type: integer, data_tests: [not_null]}
+      - {name: numero_echeance, data_type: integer, data_tests: [not_null]}
+      - name: type_tiers
+        data_type: text
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [client, fournisseur]
+      - {name: code_tiers, data_type: text}
+      - name: cle_client
+        data_type: text
+        description: Clé vers dim_client. Vide pour un fournisseur.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_client')
+                field: cle_client
+              config:
+                # Un tiers client des échéances peut ne pas avoir de fiche client
+                severity: warn
+      - {name: compte_collectif, data_type: text, description: "CT, FL, EFA… (SAC_0)."}
+      - {name: numero_document_origine, data_type: text}
+      - {name: societe, data_type: text}
+      - {name: site, data_type: text}
+      - {name: date_echeance, data_type: date, data_tests: [not_null]}
+      - {name: mode_paiement, data_type: text}
+      - {name: devise, data_type: text}
+      - {name: montant_signe, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: paye_signe, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: reste_a_payer, data_type: "numeric(28,10)", description: "(montant - payé) × signe, en MAD.", data_tests: [not_null]}
+      - {name: en_cours_paiement, data_type: "numeric(28,10)"}
+      - {name: est_ouverte, data_type: boolean, description: "Reste à payer d'au moins 0,01 MAD."}
+      - {name: est_lettree, data_type: boolean}
+      - {name: niveau_relance, data_type: integer}
+      - {name: date_paiement, data_type: date}
+      - {name: date_calcul, data_type: date, description: Date à laquelle le retard est calculé.}
+      - {name: jours_retard, data_type: integer, description: "Vide si l'échéance est soldée ; 0 si pas encore échue."}
+      - name: tranche_retard
+        data_type: text
+        description: Tranche de la balance âgée. Vide si l'échéance est soldée.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - "0 - non échu"
+                  - "1 - 1 à 30 jours"
+                  - "2 - 31 à 60 jours"
+                  - "3 - 61 à 90 jours"
+                  - "4 - 91 à 180 jours"
+                  - "5 - 181 à 365 jours"
+                  - "6 - plus de 365 jours"
+      - {name: charge_le, data_type: timestamp with time zone}
+
+unit_tests:
+  - name: echeances_reste_signe_et_tranches
+    description: >
+      Reste à payer signé (client positif, avoir négatif), échéance soldée
+      sans tranche, tranches de retard aux bornes (30 et 31 jours).
+    model: fct_echeances
+    overrides:
+      macros:
+        # La date du jour est figée pour que le test donne toujours le même résultat
+        date_du_jour: "date '2026-06-30'"
+    given:
+      - input: ref('stg_x3__echeances')
+        rows:
+          # Facture client de 1 000, 400 payés, échue depuis 30 jours
+          - {type_piece: FAC, numero_piece: F1, ligne_piece: 1, numero_echeance: 1, code_type_tiers: 1,
+             tiers: C1, date_echeance: "2026-05-31", signe: 1, montant: 1000, paye: 400, code_lettrage: 1}
+          # Même client, échue depuis 31 jours
+          - {type_piece: FAC, numero_piece: F2, ligne_piece: 1, numero_echeance: 1, code_type_tiers: 1,
+             tiers: C1, date_echeance: "2026-05-30", signe: 1, montant: 500, paye: 0, code_lettrage: 1}
+          # Avoir client non utilisé : nous devons 200 au client
+          - {type_piece: AVC, numero_piece: A1, ligne_piece: 1, numero_echeance: 1, code_type_tiers: 1,
+             tiers: C1, date_echeance: "2026-07-15", signe: -1, montant: 200, paye: 0, code_lettrage: 1}
+          # Facture soldée
+          - {type_piece: FAC, numero_piece: F3, ligne_piece: 1, numero_echeance: 1, code_type_tiers: 1,
+             tiers: C1, date_echeance: "2025-01-01", signe: 1, montant: 300, paye: 300, code_lettrage: 2}
+    expect:
+      rows:
+        - {numero_piece: F1, reste_a_payer: 600, est_ouverte: true, jours_retard: 30, tranche_retard: "1 - 1 à 30 jours"}
+        - {numero_piece: F2, reste_a_payer: 500, est_ouverte: true, jours_retard: 31, tranche_retard: "2 - 31 à 60 jours"}
+        - {numero_piece: A1, reste_a_payer: -200, est_ouverte: true, jours_retard: 0, tranche_retard: "0 - non échu"}
+        - {numero_piece: F3, reste_a_payer: 0, est_ouverte: false, jours_retard: null, tranche_retard: null}

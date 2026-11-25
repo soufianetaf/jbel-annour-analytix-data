@@ -20,3 +20,8 @@ sources:
         description: Fiches clients (BPCUSTOMER), en liste fermée de colonnes. Une ligne par client.
       - name: itmmaster
         description: Fiches articles (ITMMASTER), en liste fermée de colonnes. Une ligne par article.
+      - name: gaccdudate
+        description: >
+          Échéances clients et fournisseurs (GACCDUDATE), en liste fermée.
+          Copie incrémentale sur UPDDATTIM_0, complète chaque semaine.
+          Une ligne par échéance d'une pièce comptable.
