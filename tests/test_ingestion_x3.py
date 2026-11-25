@@ -245,3 +245,16 @@ def test_verification_des_types_detecte_une_macro_texte_sur_un_nombre() -> None:
         "stg_x3__mouvements_stock" in p and "texte_x3(stofcy_0)" in p and "bigint" in p
         for p in problemes
     )
+
+
+def test_doublon_deja_dans_la_source_pas_signale() -> None:
+    # Table sans clé dans la source : le même jour enregistré deux fois
+    r = _resultat(Mesure(10, Decimal(100), doublons=1), Mesure(10, Decimal(100), doublons=1))
+
+    assert r.conforme
+
+
+def test_doublon_en_plus_dans_l_entrepot_signale() -> None:
+    r = _resultat(Mesure(10, Decimal(100), doublons=1), Mesure(10, Decimal(100), doublons=2))
+
+    assert r.problemes == ["1 doublon(s) sur la clé"]

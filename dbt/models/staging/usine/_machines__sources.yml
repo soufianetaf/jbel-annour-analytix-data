@@ -1,0 +1,67 @@
+version: 2
+
+# Bases des automates des machines (serveur de l'usine), copiées par
+# ingestion.usine_machines, sans nom d'opérateur.
+
+sources:
+  - name: moulage
+    schema: raw_moulage
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 2, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: remplissage_process_data
+        description: "Mesures du process du moulage (environ une toutes les 11 secondes)."
+      - name: remplissage_etagere
+        description: "Remplissage des étagères en sortie de moulage."
+      - name: donnes_prod_mono
+        description: "Relevés du monobloc à chaque fin de poste (compteurs cumulés depuis le début de la journée)."
+
+  - name: sechoir
+    schema: raw_sechoir
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 4, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: donnes_prod_sech
+        description: "Relevés du séchoir (étagères, générateurs)."
+
+  - name: empileuse
+    schema: raw_empileuse
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 4, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: chargement_wagons
+        description: "Chargement des wagons, un par wagon."
+      - name: donnes_prod_emp
+        description: "Relevés de l'empileuse (compteurs cumulés depuis le début de la journée)."
+
+  - name: four_prod
+    schema: raw_four_prod
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 4, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: donnes_prod_four
+        description: "Relevés du four (compteurs cumulés depuis le début de la journée)."
+      - name: production_four
+        description: "Production du four par recette (31/05/2025 au 25/01/2026)."
+
+  - name: depileuse
+    schema: raw_depileuse
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 4, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: dechargement_wagons
+        description: "Déchargement des wagons, un par wagon."
+      - name: donnes_dep
+        description: "Temps de cycle de la dépileuse."
+      - name: donnes_prod_dep
+        description: "Relevés de la dépileuse (compteurs cumulés depuis le début de la journée)."

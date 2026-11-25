@@ -61,6 +61,10 @@ class TableX3:
     incremental: str | None = None
     # Jours relus à chaque passage, par sécurité (modifications tardives)
     lag_jours: int = 3
+    # Table qui ne reçoit que des ajouts, jamais de modification (mesures
+    # des machines) : le rapprochement compare les deux côtés arrêtés à la
+    # dernière ligne copiée
+    ajout_seul: bool = False
 
     @property
     def destination(self) -> str:

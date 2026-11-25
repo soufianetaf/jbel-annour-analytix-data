@@ -1,0 +1,117 @@
+version: 2
+
+models:
+  - name: fct_machines_jour
+    description: >
+      Bilan journalier par machine. Grain : une machine × un jour. Le total du
+      jour est le dernier relevé (compteurs cumulés depuis le début de la
+      journée). Définitions : docs/indicateurs/machines.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [machine, jour]
+    columns:
+      - name: machine
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [moulage, empileuse, four, depileuse]
+      - {name: jour, data_type: date, data_tests: [not_null]}
+      - {name: production, data_type: "numeric(18,3)", description: "Production du jour (dernier relevé), dans unite_production."}
+      - {name: unite_production, data_type: text, description: "étagère, wagon, tonne, paquet."}
+      - {name: production_secondaire, data_type: "numeric(18,3)", description: "Moulage : étagères calculées ; four : briques à l'unité ; dépileuse : paquets en vrac."}
+      - {name: wagons_journal, data_type: integer, description: "Wagons au journal de passage (empileuse, dépileuse)."}
+      - {name: heures_marche, data_type: "numeric(10,3)"}
+      - {name: heures_arret, data_type: "numeric(10,3)"}
+      - {name: disponibilite, data_type: "numeric(8,4)", description: "Heures de marche / (marche + arrêt)."}
+      - {name: demarrages, data_type: integer}
+      - {name: dernier_releve_le, data_type: timestamp}
+      - {name: releves_du_jour, data_type: integer}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: fct_moulage_quart_heure
+    description: "Mesures du moulage agrégées par quart d'heure. Grain : un quart d'heure avec au moins une mesure."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [quart_heure]
+    columns:
+      - {name: quart_heure, data_type: timestamp}
+      - {name: mesures, data_type: integer}
+      - {name: vitesse_coupe_moy, data_type: "numeric(12,3)"}
+      - {name: vitesse_doseur_moy, data_type: "numeric(12,3)"}
+      - {name: pression_monobloc_moy, data_type: "numeric(12,3)"}
+      - {name: pression_monobloc_max, data_type: "numeric(12,3)"}
+      - {name: courant_extrudeuse_moy, data_type: "numeric(12,3)"}
+      - {name: courant_extrudeuse_max, data_type: "numeric(12,3)"}
+      - {name: mesures_courant_vides, data_type: integer}
+
+  - name: agg_moulage_coupures
+    description: "Coupures des mesures du moulage de plus d'une heure. Grain : une coupure."
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: debut, data_type: timestamp, data_tests: [unique, not_null]}
+      - {name: fin, data_type: timestamp}
+      - {name: duree_heures, data_type: "numeric(10,2)"}
+      - {name: heures_marche_du_jour, data_type: "numeric(10,3)", description: "Heures de marche du relevé du jour : si elles sont élevées, la coupure est probablement une panne de collecte."}
+
+  - name: fct_wagons
+    description: "Passages de wagons à l'empileuse et à la dépileuse. Grain : un passage."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [machine, id_passage]
+    columns:
+      - {name: machine, data_type: text}
+      - {name: id_passage, data_type: bigint}
+      - {name: operation, data_type: text}
+      - {name: jour, data_type: date}
+      - {name: entree_le, data_type: timestamp}
+      - {name: sortie_le, data_type: timestamp}
+      - {name: numero_wagon, data_type: integer}
+      - {name: cycle_minutes, data_type: "numeric(10,2)", description: "Sortie - entrée ; vide si négatif ou plus de 24 h."}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+unit_tests:
+  - name: machines_total_du_jour_est_le_dernier_releve
+    description: >
+      Trois relevés cumulés dans la journée (267, 583, 935 t) : le total du
+      jour est 935 t, pas 1 785 t.
+    model: fct_machines_jour
+    given:
+      - input: ref('stg_machines__releves')
+        rows:
+          - {machine: four, releve_le: "2026-11-24 06:00:00", production: 267, unite_production: tonne}
+          - {machine: four, releve_le: "2026-11-24 14:00:00", production: 583, unite_production: tonne}
+          - {machine: four, releve_le: "2026-11-24 22:59:00", production: 935, unite_production: tonne}
+          - {machine: four, releve_le: "2026-11-25 06:00:00", production: 270, unite_production: tonne}
+      - input: ref('stg_machines__wagons')
+        rows: []
+    expect:
+      rows:
+        - {machine: four, jour: "2026-11-24", production: 935, releves_du_jour: 3}
+        - {machine: four, jour: "2026-11-25", production: 270, releves_du_jour: 1}
+
+  - name: duree_automate_en_heures
+    description: "Relevés écrits par l'automate : « 2: 1:53 » vaut 2,0314 h ; « encours » devient vide."
+    model: stg_machines__releves
+    given:
+      - input: source('moulage', 'donnes_prod_mono')
+        rows:
+          - {date_insert: "2026-11-24 22:00:00", nbr_chariot_reel: 174, heure_marche: "14: 4:18", heure_arret_total: " 2: 1:53", nbr_demarrage: 3}
+      - input: source('empileuse', 'donnes_prod_emp')
+        rows:
+          - {date_insert: "2026-11-24 22:00:00", wagons_empiles: 44.667, heure_marche_empileuse: "19:25:28", heure_arret_empileuse: "encours"}
+      - input: source('four_prod', 'donnes_prod_four')
+        rows: []
+      - input: source('depileuse', 'donnes_prod_dep')
+        rows: []
+    expect:
+      rows:
+        - {machine: moulage, production: 174, heures_marche: 14.0717, heures_arret: 2.0314}
+        - {machine: empileuse, production: 44.667, heures_marche: 19.4244, heures_arret: null}

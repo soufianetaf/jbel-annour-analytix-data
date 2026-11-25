@@ -50,8 +50,12 @@ class Resultat:
             problemes.append(f"{self.ecart_lignes:+d} ligne(s)")
         if abs(self.ecart_montant) >= TOLERANCE_MONTANT:
             problemes.append(f"écart de montant {self.ecart_montant:+,.2f}")
-        if self.entrepot.doublons:
-            problemes.append(f"{self.entrepot.doublons} doublon(s) sur la clé")
+        # Un doublon déjà présent dans la source (table sans clé, même jour
+        # enregistré deux fois) n'est pas une erreur de copie : seuls les
+        # doublons en PLUS dans l'entrepôt sont signalés.
+        doublons_en_plus = self.entrepot.doublons - self.source.doublons
+        if doublons_en_plus > 0:
+            problemes.append(f"{doublons_en_plus} doublon(s) sur la clé")
         return problemes
 
     @property
@@ -65,24 +69,65 @@ def _id(nom: str) -> str:
     return nom
 
 
-def mesurer_source(curseur, dossier: str, table: str, montant: str | None) -> Mesure:
-    """Compte et somme dans Sage X3 (session sans verrou, voir sqlserver.connecter)."""
+def mesurer_source(
+    curseur,
+    dossier: str,
+    table: str,
+    montant: str | None,
+    cle: tuple[str, ...] = (),
+    borne: tuple[str, object] | None = None,
+) -> Mesure:
+    """Compte, somme et doublons de clé dans la source (session sans verrou).
+
+    ``borne`` (colonne, valeur) : ne compte que les lignes jusqu'à cette
+    valeur, pour comparer la source et l'entrepôt arrêtés au même instant.
+    """
     somme = f"CAST({_id(montant)} AS DECIMAL(28, 4))" if montant else "0"
-    curseur.execute(f"SELECT COUNT(*), COALESCE(SUM({somme}), 0) FROM {_id(dossier)}.{_id(table)}")
+    objet = f"{_id(dossier)}.{_id(table)}"
+    filtre, parametres = "", ()
+    if borne:
+        filtre, parametres = f" WHERE {_id(borne[0])} <= ?", (borne[1],)
+    curseur.execute(f"SELECT COUNT(*), COALESCE(SUM({somme}), 0) FROM {objet}{filtre}", *parametres)
     lignes, total = curseur.fetchone()
-    return Mesure(lignes=int(lignes), montant=Decimal(total))
+    doublons = 0
+    if cle:
+        colonnes_cle = ", ".join(_id(c) for c in cle)
+        curseur.execute(
+            f"SELECT COUNT(*) FROM (SELECT DISTINCT {colonnes_cle} FROM {objet}{filtre}) AS d",
+            *parametres,
+        )
+        doublons = int(lignes) - int(curseur.fetchone()[0])
+    return Mesure(lignes=int(lignes), montant=Decimal(total), doublons=doublons)
+
+
+def borne_entrepot(curseur, schema: str, table: str, colonne: str):
+    """Dernière valeur copiée d'une colonne (ex. date de la dernière mesure)."""
+    curseur.execute(f"SELECT max({_id(colonne.lower())}) FROM {_id(schema)}.{_id(table.lower())}")
+    return curseur.fetchone()[0]
 
 
 def mesurer_entrepot(
-    curseur, schema: str, table: str, montant: str | None, cle: tuple[str, ...]
+    curseur,
+    schema: str,
+    table: str,
+    montant: str | None,
+    cle: tuple[str, ...],
+    borne: tuple[str, object] | None = None,
 ) -> Mesure:
     """Compte, somme et doublons de clé dans la couche raw (noms en minuscules)."""
     colonnes_cle = ", ".join(_id(c.lower()) for c in cle)
-    somme = _id(montant.lower()) if montant else "0"
+    # Arrondi à 4 décimales AVANT la somme, comme côté source (CAST en
+    # DECIMAL(28, 4)) : sinon une mesure à virgule flottante additionnée
+    # un million de fois donne quelques centimes d'écart
+    somme = f"CAST({_id(montant.lower())} AS NUMERIC(28, 4))" if montant else "0"
+    filtre, parametres = "", ()
+    if borne:
+        filtre, parametres = f" WHERE {_id(borne[0].lower())} <= %s", (borne[1],)
     curseur.execute(
         f"SELECT COUNT(*), COALESCE(SUM({somme}), 0), "
         f"COUNT(*) - COUNT(DISTINCT ({colonnes_cle})) "
-        f"FROM {_id(schema)}.{_id(table.lower())}"
+        f"FROM {_id(schema)}.{_id(table.lower())}{filtre}",
+        parametres or None,
     )
     lignes, total, doublons = curseur.fetchone()
     return Mesure(lignes=int(lignes), montant=Decimal(total), doublons=int(doublons))
@@ -130,12 +175,30 @@ def rapprocher_tables(tables, cible=None) -> bool:
         with contexte_x3 as connexion_x3, connexion_dw.cursor() as curseur_dw:
             curseur_x3 = connexion_x3.cursor()
             for table in tables:
+                # Table qui ne reçoit que des ajouts (mesures des machines) :
+                # on compare les deux côtés arrêtés à la dernière ligne copiée,
+                # sinon chaque mesure arrivée après la copie compterait en écart
+                # La borne est l'identifiant (croissant, exact) quand la clé
+                # n'a qu'une colonne : une date serait arrondie différemment
+                # par SQL Server (1/300 s) et PostgreSQL (microseconde).
+                borne = None
+                if table.ajout_seul:
+                    colonne = table.cle[0] if len(table.cle) == 1 else table.incremental
+                    valeur = borne_entrepot(curseur_dw, cible.schema_raw, table.nom, colonne)
+                    borne = (colonne, valeur) if valeur is not None else None
                 resultats.append(
                     Resultat(
                         table=table.nom,
-                        source=mesurer_source(curseur_x3, schema, table.nom, table.montant),
+                        source=mesurer_source(
+                            curseur_x3, schema, table.nom, table.montant, table.cle, borne
+                        ),
                         entrepot=mesurer_entrepot(
-                            curseur_dw, cible.schema_raw, table.nom, table.montant, table.cle
+                            curseur_dw,
+                            cible.schema_raw,
+                            table.nom,
+                            table.montant,
+                            table.cle,
+                            borne,
                         ),
                     )
                 )
