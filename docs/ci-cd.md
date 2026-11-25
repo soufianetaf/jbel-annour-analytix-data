@@ -153,6 +153,7 @@ uv run python -m ingestion.rapprochement --creances # restes à payer ouverts, c
 uv run python -m ingestion.rapprochement --resultat # résultat par exercice : BALANCE de X3 contre l'entrepôt
 uv run python -m ingestion.rapprochement --tresorerie # soldes de trésorerie, compte par compte
 uv run python -m ingestion.rapprochement --stock # stock valorisé par site
+uv run python -m ingestion.rapprochement --achats # dépense d'achat par année (lignes de factures)
 ```
 
 Le rapprochement du CA calcule le même indicateur des deux côtés, mais par deux chemins : les **entêtes** dans Sage X3, les **lignes** dans l'entrepôt. Écart toléré : moins de 0,01 MAD par année (critère d'acceptation n° 1).
@@ -217,6 +218,10 @@ Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à 
 | `fct_stock_article`, `fct_mouvements_stock` | **Contrats**, clés primaires ; `relationships` vers `dim_article` | Colonnes figées, articles connus | Tables lues par l'API et Power BI |
 | `fct_stock_article` | `assert_stock_cmup_plausible` (avertissement) | Articles qui pèsent plus de 5 % du stock de leur site | 10 articles (en-cours au CMUP aberrant) font 535 M MAD sur 599 M MAD |
 | `snap_stock_jour` | Unicité (jour, article, site) ; `full_refresh=false` | Une photo par article et par jour, jamais effacée | Le stock passé ne se recalcule pas de façon fiable |
+| Achats (staging) | Unicité de chaque table à sa clé (DA, ligne de DA, lien DA → commande, commande, ligne de commande, réception, facture, ligne de facture, fournisseur) ; `relationships` lignes → entêtes et commandes → fournisseurs | Chaque document et chaque ligne une seule fois ; aucun orphelin | Le circuit relie quatre documents : un doublon ou un orphelin fausserait délais et dépenses |
+| | `assert_x3_da_montant_plausible` (avertissement) | Lignes de DA de plus de 100 M MAD | 85 lignes à prix fictif (500 000 MAD) totalisent 6 171 milliards MAD |
+| | `assert_x3_facture_fournisseur_entete_egal_lignes` (avertissement) | Factures dont l'entête ne correspond pas aux lignes | 22 factures : la comptabilité (entête) et l'analyse par article (lignes) divergent pour elles |
+| `dim_fournisseur`, `fct_cycle_achat`, `fct_achats_factures` | **Contrats**, clés primaires ; `relationships` vers `dim_fournisseur` et `dim_article` | Colonnes figées, fournisseurs et articles connus | Tables lues par l'API et Power BI |
 | Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
 
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)

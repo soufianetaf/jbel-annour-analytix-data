@@ -43,3 +43,21 @@ sources:
         description: >
           Journal des mouvements de stock (STOJOU), en liste fermée, sans libellé
           ni champs libres. Incrémental sur UPDDATTIM_0.
+      - name: prequis
+        description: "Entêtes de demandes d'achat (PREQUIS), en liste fermée."
+      - name: prequisd
+        description: "Lignes de demandes d'achat (PREQUISD), en liste fermée."
+      - name: prequiso
+        description: "Lien ligne de demande d'achat → ligne de commande (PREQUISO)."
+      - name: porder
+        description: "Entêtes de commandes fournisseurs (PORDER), sans nom ni adresse."
+      - name: porderq
+        description: "Lignes de commandes fournisseurs (PORDERQ), en liste fermée."
+      - name: preceiptd
+        description: "Lignes de réceptions fournisseurs (PRECEIPTD), en liste fermée."
+      - name: pinvoice
+        description: "Entêtes de factures fournisseurs (PINVOICE), sans nom ni adresse."
+      - name: pinvoiced
+        description: "Lignes de factures fournisseurs (PINVOICED), en liste fermée."
+      - name: bpsupplier
+        description: "Fiches fournisseurs (BPSUPPLIER), sans banque."

@@ -440,6 +440,73 @@ def rapprocher_stock() -> bool:
     return all(r.conforme for r in resultats)
 
 
+# ─── Dépense d'achat par année : Sage X3 / marts.fct_achats_factures ──
+#
+# On compare les LIGNES de factures des deux côtés, avec la même
+# conversion en MAD (taux de l'entête). L'écart entre les entêtes et les
+# lignes de Sage X3 lui-même (factures dont l'entête ne correspond pas à
+# ses lignes) est affiché à part : c'est une anomalie de la source, listée
+# par le test dbt assert_x3_facture_fournisseur_entete_egal_lignes.
+
+REQUETE_ACHATS_X3 = """
+-- Lignes additionnées par facture, puis converties en MAD en multipliant
+-- AVANT de diviser : SQL Server tronque sinon les décimales du taux.
+SELECT YEAR(l.ACCDAT_0),
+       SUM(l.lignes * h.SNS_0 * CASE WHEN h.AMTNOT_0 <> 0
+                                     THEN CAST(h.AMTNOTL_0 AS DECIMAL(28, 6)) END
+           / CASE WHEN h.AMTNOT_0 <> 0 THEN CAST(h.AMTNOT_0 AS DECIMAL(28, 6)) END)
+       + SUM(CASE WHEN h.AMTNOT_0 = 0 THEN l.lignes * h.SNS_0 ELSE 0 END)
+FROM (SELECT NUM_0, ACCDAT_0, SUM(CAST(AMTNOTLIN_0 AS DECIMAL(28, 6))) AS lignes
+      FROM {dossier}.PINVOICED
+      WHERE LTRIM(RTRIM(NUM_0)) <> ''
+      GROUP BY NUM_0, ACCDAT_0) AS l
+JOIN {dossier}.PINVOICE h ON h.NUM_0 = l.NUM_0
+GROUP BY YEAR(l.ACCDAT_0)
+"""
+
+REQUETE_ACHATS_ENTETES_X3 = """
+SELECT YEAR(ACCDAT_0), SUM(CAST(AMTNOTL_0 AS DECIMAL(28, 4)) * SNS_0)
+FROM {dossier}.PINVOICE
+WHERE LTRIM(RTRIM(NUM_0)) <> ''
+GROUP BY YEAR(ACCDAT_0)
+"""
+
+REQUETE_ACHATS_ENTREPOT = """
+SELECT extract(year FROM date_comptable)::int, sum(montant_ht_mad_signe)
+FROM marts.fct_achats_factures
+GROUP BY 1
+"""
+
+
+def rapprocher_achats() -> bool:
+    """Dépense d'achat HT par année (lignes) : Sage X3 contre l'entrepôt."""
+    source, contexte_x3, connexion_dw = _connexions()
+    dossier = _id(source.dossier)
+    try:
+        with contexte_x3 as connexion_x3, connexion_dw.cursor() as curseur_dw:
+            curseur_x3 = connexion_x3.cursor()
+            curseur_x3.execute(REQUETE_ACHATS_X3.format(dossier=dossier))
+            x3 = {int(a): Decimal(m) for a, m in curseur_x3.fetchall()}
+            curseur_x3.execute(REQUETE_ACHATS_ENTETES_X3.format(dossier=dossier))
+            entetes = {int(a): Decimal(m) for a, m in curseur_x3.fetchall()}
+            curseur_dw.execute(REQUETE_ACHATS_ENTREPOT)
+            dw = {int(a): Decimal(m) for a, m in curseur_dw.fetchall()}
+    finally:
+        connexion_dw.close()
+
+    lignes = comparer_ca(x3, dw)
+    print("\nDépense d'achat HT par année (MAD, avoirs déduits), lignes de factures")
+    print(
+        f"  {'année':6s} {'Sage X3':>18s} {'entrepôt':>18s}   {'écart':8s}"
+        f" {'entêtes X3 - lignes X3':>24s}"
+    )
+    for annee, cote_x3, cote_dw, ok in lignes:
+        etat = "OK" if ok else f"ÉCART {cote_dw - cote_x3:+,.2f}"
+        interne = entetes.get(annee, Decimal(0)) - cote_x3
+        print(f"  {annee:<6d} {cote_x3:>18,.2f} {cote_dw:>18,.2f}   {etat:8s} {interne:>24,.2f}")
+    return all(ok for *_, ok in lignes)
+
+
 def _identifiants_psycopg(entrepot) -> dict:
     ident = entrepot.identifiants_dlt()
     return {
@@ -466,6 +533,9 @@ def main(arguments: list[str] | None = None) -> int:
         "--tresorerie", action="store_true", help="soldes de trésorerie contre la BALANCE X3"
     )
     parseur.add_argument("--stock", action="store_true", help="stock valorisé par site contre X3")
+    parseur.add_argument(
+        "--achats", action="store_true", help="dépense d'achat par année contre X3"
+    )
     options = parseur.parse_args(arguments)
     tout = not (
         options.raw
@@ -474,6 +544,7 @@ def main(arguments: list[str] | None = None) -> int:
         or options.resultat
         or options.tresorerie
         or options.stock
+        or options.achats
     )
     conforme = True
     if options.raw or tout:
@@ -488,6 +559,8 @@ def main(arguments: list[str] | None = None) -> int:
         conforme &= rapprocher_tresorerie()
     if options.stock or tout:
         conforme &= rapprocher_stock()
+    if options.achats or tout:
+        conforme &= rapprocher_achats()
     return 0 if conforme else 1
 
 

@@ -280,3 +280,98 @@ models:
       - name: quantite
         description: Quantité en unité de stock, positive à l'entrée, négative à la sortie.
         data_tests: [not_null]
+
+  - name: stg_x3__demandes_achat
+    description: "Demandes d'achat de Sage X3. Grain : une demande."
+    columns:
+      - name: numero_demande
+        data_tests: [unique, not_null]
+      - name: date_demande
+        data_tests: [not_null]
+
+  - name: stg_x3__lignes_demande_achat
+    description: "Lignes de demandes d'achat. Grain : une ligne de demande."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_demande, ligne]
+    columns:
+      - name: numero_demande
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_x3__demandes_achat')
+                field: numero_demande
+
+  - name: stg_x3__liens_demande_commande
+    description: "Lien ligne de DA → ligne de commande (PREQUISO). Grain : un lien."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_demande, ligne_demande, numero_commande, ligne_commande, sequence_commande]
+
+  - name: stg_x3__commandes_achat
+    description: "Commandes fournisseurs. Grain : une commande."
+    columns:
+      - name: numero_commande
+        data_tests: [unique, not_null]
+      - name: fournisseur
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_x3__fournisseurs')
+                field: code_fournisseur
+
+  - name: stg_x3__lignes_commande_achat
+    description: "Lignes de commandes fournisseurs. Grain : une ligne × une échéance de livraison."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_commande, ligne, sequence]
+    columns:
+      - name: numero_commande
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_x3__commandes_achat')
+                field: numero_commande
+
+  - name: stg_x3__lignes_reception
+    description: "Lignes de réceptions fournisseurs. Grain : une ligne de réception."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_reception, ligne]
+
+  - name: stg_x3__factures_fournisseurs
+    description: "Factures et avoirs fournisseurs. Grain : un document."
+    columns:
+      - name: numero_facture
+        data_tests: [unique, not_null]
+      - name: signe
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, -1]
+                quote: false
+
+  - name: stg_x3__lignes_facture_fournisseur
+    description: "Lignes de factures fournisseurs. Grain : une ligne de document."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_facture, ligne]
+    columns:
+      - name: numero_facture
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_x3__factures_fournisseurs')
+                field: numero_facture
+
+  - name: stg_x3__fournisseurs
+    description: "Fournisseurs de Sage X3, sans banque. Grain : un fournisseur."
+    columns:
+      - name: code_fournisseur
+        data_tests: [unique, not_null]

@@ -1,0 +1,127 @@
+version: 2
+
+models:
+  - name: dim_fournisseur
+    description: "Fournisseurs de Sage X3, plus une ligne « Inconnu ». Grain : un fournisseur."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [cle_fournisseur]
+    columns:
+      - {name: cle_fournisseur, data_type: text}
+      - {name: code_fournisseur, data_type: text, data_tests: [unique]}
+      - {name: nom_fournisseur, data_type: text, data_tests: [not_null]}
+      - {name: intitule_court, data_type: text}
+      - {name: code_type_fournisseur, data_type: integer}
+      - {name: groupe, data_type: text}
+      - {name: devise, data_type: text}
+      - {name: est_actif, data_type: boolean}
+
+  - name: fct_cycle_achat
+    description: >
+      Circuit d'achat. Grain : une ligne de commande × échéance de livraison,
+      avec les dates de la DA, de la commande, de la première réception et de
+      la première facture. Définitions : docs/indicateurs/achats_circuit.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [numero_commande, ligne, sequence]
+    columns:
+      - {name: numero_commande, data_type: text}
+      - {name: ligne, data_type: integer}
+      - {name: sequence, data_type: integer}
+      - {name: site, data_type: text}
+      - name: cle_fournisseur
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fournisseur')
+                field: cle_fournisseur
+      - name: cle_article
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_article')
+                field: cle_article
+      - {name: code_fournisseur, data_type: text}
+      - {name: code_article, data_type: text}
+      - {name: acheteur, data_type: text}
+      - {name: numero_demande, data_type: text, description: "DA d'origine (la plus ancienne). Vide pour un achat direct."}
+      - {name: nombre_demandes, data_type: integer}
+      - {name: est_achat_direct, data_type: boolean, description: "Commande sans demande d'achat."}
+      - {name: date_demande, data_type: date}
+      - {name: date_commande, data_type: date, data_tests: [not_null]}
+      - {name: date_reception_prevue, data_type: date}
+      - {name: date_premiere_reception, data_type: date}
+      - {name: date_premiere_facture, data_type: date}
+      - {name: jours_demande_commande, data_type: integer}
+      - {name: jours_commande_reception, data_type: integer}
+      - {name: jours_reception_facture, data_type: integer}
+      - {name: jours_retard_livraison, data_type: integer}
+      - {name: quantite_commandee, data_type: "numeric(28,10)"}
+      - {name: quantite_recue, data_type: "numeric(28,10)"}
+      - {name: quantite_facturee, data_type: "numeric(28,10)"}
+      - {name: unite_stock, data_type: text}
+      - {name: taux_service, data_type: "numeric(28,10)", description: "Quantité reçue / quantité commandée."}
+      - {name: montant_ht, data_type: "numeric(28,10)"}
+      - {name: devise, data_type: text}
+      - {name: est_soldee, data_type: boolean}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: fct_achats_factures
+    description: >
+      Dépenses d'achat. Grain : une ligne de facture ou d'avoir fournisseur.
+      Montants signés (avoir négatif), en devise et en MAD.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [numero_facture, ligne]
+    columns:
+      - {name: numero_facture, data_type: text}
+      - {name: ligne, data_type: integer}
+      - name: type_document
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [facture, avoir]
+      - {name: type_facture, data_type: text}
+      - {name: signe, data_type: integer}
+      - {name: date_comptable, data_type: date, data_tests: [not_null]}
+      - {name: site, data_type: text}
+      - name: cle_fournisseur
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fournisseur')
+                field: cle_fournisseur
+      - name: cle_article
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_article')
+                field: cle_article
+              config:
+                severity: warn
+      - {name: code_fournisseur, data_type: text}
+      - {name: code_article, data_type: text}
+      - {name: numero_commande, data_type: text}
+      - {name: numero_reception, data_type: text}
+      - {name: quantite_signee, data_type: "numeric(28,10)"}
+      - {name: unite_stock, data_type: text}
+      - {name: prix_net, data_type: "numeric(28,10)"}
+      - {name: devise, data_type: text}
+      - {name: montant_ht_signe, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: montant_ht_mad_signe, data_type: "numeric(28,10)", description: "Montant HT en MAD, au taux de la facture.", data_tests: [not_null]}
+      - {name: charge_le, data_type: timestamp with time zone}
