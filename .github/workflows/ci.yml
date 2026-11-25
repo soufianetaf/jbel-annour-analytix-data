@@ -154,5 +154,8 @@ jobs:
         run: uv run dbt deps
 
       - name: Vérifier le projet (SQL, références, tests, YAML)
-        # « parse » lit tout le projet sans se connecter à l'entrepôt
-        run: uv run dbt parse --warn-error-options '{"error": ["NoNodesForSelectionCriteria"]}'
+        # « parse » lit tout le projet sans se connecter à l'entrepôt.
+        # Bloc « | » : le texte est pris tel quel (le « : » du JSON
+        # serait sinon lu comme une clé YAML).
+        run: |
+          uv run dbt parse --warn-error-options '{"error": ["NoNodesForSelectionCriteria"]}'
