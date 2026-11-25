@@ -1,0 +1,107 @@
+version: 2
+
+models:
+  - name: stg_x3__factures
+    description: >
+      Documents de vente de Sage X3 (factures, avoirs, pro forma), nettoyés.
+      Grain : une ligne = un document. Montants positifs ; le signe est dans « signe ».
+    columns:
+      - name: numero_facture
+        description: Numéro du document (NUM_0). Clé.
+        data_tests:
+          - unique
+          - not_null
+      - name: type_facture
+        description: "FAC facture, AVF / AVR avoir, PRF pro forma (SIVTYP_0)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["FAC", "AVF", "AVR", "PRF"]
+      - name: signe
+        description: "1 pour une facture, -1 pour un avoir (SNS_0)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, -1]
+                quote: false
+      - name: societe
+        description: Société Sage X3 (CPY_0). 100 = Jbel Annour.
+        data_tests:
+          - not_null
+      - name: site
+        description: Site de vente (FCY_0). 101 usine, 102 négoce…
+        data_tests:
+          - not_null
+      - name: client
+        description: Code du client (BPR_0).
+        data_tests:
+          - not_null
+      - name: date_comptable
+        description: Date comptable du document (ACCDAT_0).
+        data_tests:
+          - not_null
+      - name: devise
+        description: Devise du document (CUR_0).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["MAD"]
+              # Une autre devise n'est pas une erreur, mais doit être vue
+              config:
+                severity: warn
+      - name: montant_ht
+        description: Montant hors taxes, positif (AMTNOT_0).
+        data_tests:
+          - not_null
+      - name: montant_ttc
+        description: Montant toutes taxes comprises, positif (AMTATI_0).
+        data_tests:
+          - not_null
+
+  - name: stg_x3__lignes_facture
+    description: >
+      Lignes des documents de vente de Sage X3, nettoyées.
+      Grain : une ligne = une ligne de document. Montants positifs.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["numero_facture", "numero_ligne"]
+    columns:
+      - name: numero_facture
+        description: Numéro du document (NUM_0).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_x3__factures')
+                field: numero_facture
+      - name: numero_ligne
+        description: Numéro de la ligne dans le document (SIDLIN_0).
+        data_tests:
+          - not_null
+      - name: article
+        description: Code article (ITMREF_0).
+        data_tests:
+          - not_null
+      - name: representant
+        description: Représentant principal (REP1_0). Sert au filtre par représentant.
+        data_tests:
+          - not_null:
+              # 63 lignes sans représentant au profilage : à suivre, pas bloquant
+              config:
+                severity: warn
+      - name: quantite
+        description: Quantité en unité de vente (QTY_0).
+        data_tests:
+          - not_null
+      - name: montant_ht
+        description: Montant hors taxes de la ligne, positif (AMTNOTLIN_0).
+        data_tests:
+          - not_null
+      - name: montant_ttc
+        description: Montant TTC de la ligne, positif (AMTATILIN_0).
+        data_tests:
+          - not_null

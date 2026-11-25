@@ -132,3 +132,27 @@ jobs:
 
       - name: Initialiser l'entrepôt et tester les droits de chaque compte
         run: uv run pytest -m entrepot -v
+
+  # ─── 5. dbt : le projet est valide ─────────────────────────────
+  dbt:
+    name: Projet dbt
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Installer Python et les dépendances figées
+        run: uv sync --locked
+
+      - name: Installer les bibliothèques dbt (versions de package-lock.yml)
+        run: uv run dbt deps
+
+      - name: Vérifier le projet (SQL, références, tests, YAML)
+        # « parse » lit tout le projet sans se connecter à l'entrepôt
+        run: uv run dbt parse --warn-error-options '{"error": ["NoNodesForSelectionCriteria"]}'

@@ -1,0 +1,29 @@
+version: 2
+
+# Tests unitaires : on donne des lignes d'essai à un modèle et on vérifie
+# le résultat attendu. Ils prouvent que le nettoyage fait ce qu'il doit,
+# sur des cas choisis, indépendamment des données du moment.
+
+unit_tests:
+  - name: nettoyage_des_vides_deguises_x3
+    description: >
+      Espaces → vide, date 1753 → vide, entête technique sans numéro retiré.
+    model: stg_x3__factures
+    given:
+      - input: source('x3', 'sinvoice')
+        rows:
+          # Facture normale : les espaces autour des codes sont retirés
+          - {num_0: "FAC001 ", sivtyp_0: "FAC", sns_0: 1, cpy_0: "100", fcy_0: "101",
+             bpr_0: " C001", bprnam_0: "Client A", bprpay_0: " ", pte_0: " ",
+             accdat_0: "2026-03-15 00:00:00", strduddat_0: "1753-01-01 00:00:00",
+             credattim_0: "1900-01-01 00:00:00", cur_0: "MAD", amtnot_0: 100, amtati_0: 120}
+          # Entête technique vide : doit disparaître
+          - {num_0: " ", sivtyp_0: " ", sns_0: 0, cpy_0: " ", fcy_0: " ", bpr_0: " ",
+             accdat_0: "1753-01-01 00:00:00", cur_0: " ", amtnot_0: 0, amtati_0: 0}
+    expect:
+      rows:
+        - {numero_facture: "FAC001", type_facture: "FAC", signe: 1, societe: "100",
+           site: "101", client: "C001", nom_client: "Client A", client_payeur: null,
+           condition_paiement: null, date_comptable: "2026-03-15",
+           date_depart_echeance: null, cree_le: null, devise: "MAD",
+           montant_ht: 100, montant_ttc: 120}

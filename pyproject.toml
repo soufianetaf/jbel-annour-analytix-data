@@ -5,6 +5,10 @@ description = "Data warehouse et API de Jbel Annour Analytix"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    # Transformations et tests SQL (staging, intermediate, marts).
+    # dbt Core 1.x : la v2 est un autre moteur, à évaluer séparément.
+    "dbt-core>=1.9,<2",
+    "dbt-postgres>=1.9,<2",
     # Ingestion : copie des tables sources vers la couche raw de l'entrepôt
     "dlt[postgres,sql-database]>=1.5",
     # Connexion à l'entrepôt PostgreSQL (le même pilote que dbt et dlt)

@@ -1,0 +1,38 @@
+# ════════════════════════════════════════════════════════════════
+#  Projet dbt de Jbel Annour Analytix
+# ════════════════════════════════════════════════════════════════
+#  Lancer depuis le dossier dbt/, avec les variables du .env :
+#    cd dbt
+#    uv run --env-file ../.env dbt build
+# ════════════════════════════════════════════════════════════════
+
+name: analytix
+version: "0.1.0"
+config-version: 2
+profile: analytix
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+
+clean-targets: ["target", "dbt_packages"]
+
+flags:
+  # Un test en échec arrête la construction des modèles qui en dépendent
+  fail_fast: false
+
+models:
+  analytix:
+    # Chaque couche va dans son schéma (créé par infra.postgres.initialiser_entrepot)
+    staging:
+      +schema: staging
+      # Vues : toujours le reflet exact de raw, rien à recalculer
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table

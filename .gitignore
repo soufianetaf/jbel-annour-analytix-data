@@ -40,8 +40,7 @@ dbt/target/
 dbt/logs/
 dbt/dbt_packages/
 dbt/.user.yml
-# Le profil de connexion local reste hors de Git
-dbt/profiles.yml
+# dbt/profiles.yml est versionné : il ne lit que des variables d'environnement
 
 # ─── Dagster ─────────────────────────────────────────────────────
 # Historique des exécutions et stockage local

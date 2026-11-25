@@ -1,0 +1,5 @@
+# Bibliothèques dbt (installées par « dbt deps » dans dbt_packages/, non versionné)
+packages:
+  # Tests courants : unicité sur plusieurs colonnes, plages de valeurs…
+  - package: dbt-labs/dbt_utils
+    version: [">=1.3.0", "<2.0.0"]

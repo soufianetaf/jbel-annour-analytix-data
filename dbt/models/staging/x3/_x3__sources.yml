@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: x3
+    description: >
+      Copie fidèle de Sage X3, dossier BASE1, chargée par ingestion.x3_ventes
+      (lecture seule, sans verrou). Jamais modifiée à la main.
+    schema: raw_x3
+    loaded_at_field: _charge_le
+    # Alerte si la copie n'a pas été rafraîchie
+    freshness:
+      warn_after: {count: 4, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - name: sinvoice
+        description: Entêtes de factures et d'avoirs clients (SINVOICE). Une ligne par document.
+      - name: sinvoiced
+        description: Lignes de factures et d'avoirs clients (SINVOICED). Une ligne par ligne de document.

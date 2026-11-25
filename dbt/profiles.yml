@@ -1,0 +1,24 @@
+# ════════════════════════════════════════════════════════════════
+#  Connexion de dbt à l'entrepôt
+# ════════════════════════════════════════════════════════════════
+#  Ce fichier est versionné : il ne contient AUCUN secret. Toutes les
+#  valeurs viennent des variables d'environnement (fichier .env).
+#  dbt utilise le compte de chargement (analytix_chargeur), jamais le
+#  compte administrateur.
+# ════════════════════════════════════════════════════════════════
+
+analytix:
+  target: "{{ env_var('ANALYTIX_ENV', 'dev') }}"
+  outputs:
+    dev: &entrepot
+      type: postgres
+      host: "{{ env_var('DW_HOST', 'localhost') }}"
+      port: "{{ env_var('DW_PORT', '5432') | as_number }}"
+      dbname: "{{ env_var('DW_DATABASE', 'dw_dev') }}"
+      user: "{{ env_var('DW_USER', 'analytix_chargeur') }}"
+      password: "{{ env_var('DW_PASSWORD', '') }}"
+      # Schéma par défaut ; chaque couche précise le sien (dbt_project.yml)
+      schema: staging
+      threads: 4
+      connect_timeout: 10
+    prod: *entrepot

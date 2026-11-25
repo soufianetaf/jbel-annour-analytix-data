@@ -143,6 +143,32 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 uv run python -m ingestion.x3_ventes
 ```
 
+#### Projet dbt (job « Projet dbt »)
+
+| Contrôle | Ce qu'il vérifie | Pourquoi |
+|---|---|---|
+| `dbt deps` | Les bibliothèques dbt s'installent dans la version figée (`package-lock.yml`) | Même principe que `uv.lock` : partout les mêmes versions |
+| `dbt parse` | Tout le projet se lit sans erreur : SQL et Jinja valides, chaque `ref()` et `source()` pointe vers un modèle qui existe, chaque test est bien écrit | Une faute de frappe dans un nom de modèle est détectée avant la fusion, sans avoir besoin de l'entrepôt |
+
+#### Les tests dbt sur les données (à chaque `dbt build`)
+
+Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à chaque chargement lancé par Dagster plus tard. Un test en échec bloque les modèles qui en dépendent.
+
+| Modèle | Test | Ce qu'il vérifie | Pourquoi |
+|---|---|---|---|
+| `stg_x3__factures` | `unique`, `not_null` sur `numero_facture` | Un document = une ligne | Le grain écrit dans le modèle est respecté : pas de double comptage |
+| | `accepted_values` sur `type_facture` | Seulement FAC, AVF, AVR, PRF | Un nouveau type de document dans X3 doit être décidé avant d'entrer dans le CA |
+| | `accepted_values` sur `signe` | Seulement 1 ou -1 | Le CA est calculé avec ce signe |
+| | `accepted_values` sur `devise` (avertissement) | MAD | Une autre devise n'est pas une erreur, mais les montants ne s'additionnent plus directement |
+| | `not_null` sur société, site, client, date, montants | Champs indispensables renseignés | Une facture sans date ou sans client disparaîtrait des analyses |
+| | `assert_x3_signe_coherent_avec_type` | Avoir ⇔ signe -1, facture ou pro forma ⇔ signe 1 | Un avoir avec le signe 1 serait **ajouté** au CA au lieu d'en être retiré |
+| `stg_x3__lignes_facture` | Unicité de (`numero_facture`, `numero_ligne`) | Une ligne de document = une ligne | Grain respecté |
+| | `relationships` vers `stg_x3__factures` | Chaque ligne a son entête | Pas de ligne orpheline, qui serait comptée par article mais pas par client |
+| | `not_null` sur `representant` (avertissement) | Représentant renseigné | 63 lignes sans représentant : elles échapperaient au filtre « mes clients ». Signalé, pas bloquant |
+| Les deux | `assert_x3_total_lignes_egal_entete` | Pour chaque document, HT des lignes = HT de l'entête (au centime) | Les analyses par article et par client doivent donner le même CA |
+| | Test unitaire `nettoyage_des_vides_deguises_x3` | Sur des lignes d'essai : espaces retirés, `' '` → vide, dates 1753 / 1900 → vide, entête technique sans numéro retiré | Prouve que le nettoyage fonctionne sur les pièges connus de X3, indépendamment des données du moment |
+| Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
+
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)
 
 La CI démarre un **PostgreSQL 16 jetable** (détruit à la fin du job), y lance le script d'initialisation **deux fois**, puis vérifie les droits réels de chaque compte (`tests/test_entrepot_acces.py`) :
@@ -167,8 +193,7 @@ uv run python -m ingestion.verifier_connexions
 
 | Étape | Contrôle | Ce qu'il vérifiera | Pourquoi |
 |---|---|---|---|
-| Entrepôt (dbt) | **dbt parse / compile** | Les modèles SQL sont valides et leurs dépendances cohérentes | Une référence à une table inexistante est détectée avant le déploiement |
-| Entrepôt (dbt) | **Tests unitaires dbt** | Une règle métier donne le bon résultat sur des lignes d'essai (ex. signe des avoirs, dates 1753) | Les pièges connus des données (README, partie 14) restent corrigés à chaque modification |
+| Entrepôt (dbt) | **Tests unitaires dbt dans la CI** | Les tests unitaires tournent aussi dans la CI, sur des tables raw vides créées pour l'occasion | Aujourd'hui ils tournent à chaque `dbt build` sur le poste |
 | Entrepôt (dbt) | **dbt build sur une base PostgreSQL vide** | Toutes les tables se construisent et tous les tests passent, sur des données d'essai | Vérifie la chaîne complète sans accès aux vraies sources |
 | Entrepôt (dbt) | **Contrats des tables `marts`** | Colonnes et types des tables lues par Power BI et l'API inchangés | Une colonne renommée ne doit jamais casser un rapport sans prévenir |
 | Entrepôt (dbt) | **Colonnes sensibles** | Aucune colonne nommée CIN, RIB, salaire, mot de passe, jeton… dans les modèles | Critère d'acceptation n° 4 du cahier des charges |
