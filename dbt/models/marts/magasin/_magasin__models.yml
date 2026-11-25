@@ -37,7 +37,7 @@ models:
       - {name: charge_le, data_type: timestamp with time zone}
 
   - name: fct_gasoil
-    description: "Bons de gasoil. Grain : un bon. Le véhicule est à ajouter (nature de matricule à confirmer)."
+    description: "Bons de gasoil par véhicule. Grain : un bon. Litres aux 100 km = somme(litres) / somme(km_depuis_bon_precedent) × 100."
     config:
       contract: {enforced: true}
     constraints:
@@ -47,13 +47,14 @@ models:
       - {name: id_bon, data_type: integer}
       - {name: numero_bon, data_type: text}
       - {name: date_bon, data_type: date, data_tests: [not_null]}
-      - {name: vehicule, data_type: text}
+      - {name: vehicule, data_type: text, description: "Immatriculation du véhicule.", data_tests: [not_null]}
       - {name: service, data_type: text}
       - {name: affectation_1, data_type: text}
       - {name: cle_article, data_type: text}
       - {name: code_article, data_type: text}
       - {name: litres, data_type: "numeric(18,3)", description: "Litres délivrés (quantité saisie)."}
       - {name: compteur_km, data_type: integer, description: "Relevé du compteur kilométrique (pas une distance)."}
+      - {name: km_depuis_bon_precedent, data_type: integer, description: "Distance depuis le bon valide précédent du véhicule ; vide si le compteur recule ou avance de plus de 5 000 km."}
       - {name: decision, data_type: text}
       - {name: est_valide, data_type: boolean}
       - {name: charge_le, data_type: timestamp with time zone}

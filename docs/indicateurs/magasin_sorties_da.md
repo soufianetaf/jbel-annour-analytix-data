@@ -29,7 +29,7 @@ Ces bases contiennent des données que **l'analyse par service n'utilise pas** e
 
 | Base | Jamais copié |
 |---|---|
-| `Magasin` | table `users` (**mots de passe**), CIN et matricule du chauffeur (`requests_gazoil`), nom du demandeur, identifiants des valideurs, commentaires |
+| `Magasin` | table `users` (**mots de passe**), CIN du chauffeur (`requests_gazoil`), nom du demandeur, identifiants des valideurs, commentaires. Le `matricule` des bons de gasoil est copié : c'est l'immatriculation du **véhicule** (confirmé le 25/11/2026), pas un matricule de salarié |
 | `espace_magasin` | table `approval_tokens` (**jetons**), table `utilisateurs_badges` (**codes PIN**), noms des demandeurs et des personnes concernées, signatures, commentaires et motifs en texte libre |
 
 ## Lecture de la source
@@ -52,8 +52,9 @@ Le serveur de l'usine est lu avec le compte `sa` (dérogation du 25/11/2026, cah
   - Tous les articles sont des codes de Sage X3 : la clé article est commune avec le stock, les achats et les ventes.
 - **Gasoil** : la quantité est dans `qte_saisie` (positive, médiane 75 L par bon), pas dans `quantity` (vide sur 98 % des bons). 350 194 L validés sur les bons plausibles.
   - **9 bons aberrants** : 7 négatifs (dont -449 595 L) et 2 de plus de 38 000 L. Probablement un relevé de compteur saisi à la place des litres (test `assert_magasin_gasoil_quantite_plausible`).
-  - `km_parcouru` est le **relevé du compteur**, pas une distance.
-  - **La colonne `vehicule` est vide** : le véhicule semble être dans `matricule` (35 valeurs distinctes, un tiers au format d'une plaque d'immatriculation). Non copiée tant que sa nature n'est pas confirmée.
+  - `km_parcouru` est le **relevé du compteur**, pas une distance : la distance est l'écart avec le bon valide précédent du même véhicule (`km_depuis_bon_precedent`). 2 relevés incohérents (compteur qui recule ou saute de plus de 5 000 km) sont listés par `assert_magasin_gasoil_compteur_plausible`.
+  - **Le véhicule est dans `matricule`** (immatriculation, confirmé le 25/11/2026 ; la colonne `vehicule` est vide) : 35 véhicules. Les camions consomment **42 à 47 L aux 100 km**.
+  - Un engin affiche 1 498 L « aux 100 km » pour 1 780 « km » : son compteur compte vraisemblablement des **heures** de fonctionnement (chargeuse, engin de manutention). Pour ces engins, l'indicateur est en litres par heure : liste des engins à fournir par le magasin.
 - **Demandes d'achat de l'usine** : 639 demandes, 919 lignes ; seules 64 portent un numéro de DA Sage X3. Validation très rapide (médiane 3,6 heures).
 - **Dépassements de budget** (depuis le 17/07/2026) : 602 demandes, dont 122 approuvées par le PDG.
 - Une colonne vide sur tous les bons (`solde_j_1`) n'est pas créée par dlt : l'outil `verifier_types_staging` signale désormais ces colonnes absentes.

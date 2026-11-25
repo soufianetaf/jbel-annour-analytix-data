@@ -20,7 +20,7 @@ models:
                 values: [APPROVED, REJECTED]
 
   - name: stg_magasin__gasoil
-    description: "Bons de gasoil, sans CIN ni matricule. Grain : un bon."
+    description: "Bons de gasoil, sans CIN ni nom du demandeur. Grain : un bon."
     columns:
       - name: id_bon
         data_tests: [unique, not_null]

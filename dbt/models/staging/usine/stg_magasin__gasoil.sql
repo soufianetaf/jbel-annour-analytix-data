@@ -1,7 +1,7 @@
 {#
   Grain : une ligne = un bon de gasoil.
-  Source : raw_magasin.requests_gazoil. Ni CIN, ni matricule, ni nom du
-  demandeur (non copiés).
+  Source : raw_magasin.requests_gazoil. Ni CIN, ni nom du demandeur (non
+  copiés). « matricule » est l'immatriculation du véhicule.
 
   La quantité réellement saisie est « qte_saisie » (positive, médiane 75 L) ;
   « quantity » est presque toujours vide (38 bons sur 2 346 au 25/11/2026).
@@ -18,7 +18,10 @@ select
     id                                      as id_bon,
     {{ texte('num_br') }}                   as numero_bon,
     {{ texte('article') }}                  as article,
-    {{ texte('vehicule') }}                 as vehicule,
+    -- Le véhicule est dans « matricule » (immatriculation, confirmé le
+    -- 25/11/2026) ; la colonne « vehicule » de la source est vide
+    coalesce({{ texte('vehicule') }}, upper({{ texte('matricule') }}))
+                                            as vehicule,
     {{ texte('service') }}                  as service,
     {{ texte('affectation_1') }}            as affectation_1,
     {{ texte('affectation_2') }}            as affectation_2,

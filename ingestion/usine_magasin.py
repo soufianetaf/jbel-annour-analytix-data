@@ -18,8 +18,8 @@ des lectures sont faites, sans verrou. Toutes les tables sont petites
 (moins de 20 000 lignes) : copie complète à chaque passage.
 
 Jamais copiés (liste fermée) : mots de passe (table users), jetons de
-validation (approval_tokens), codes PIN (utilisateurs_badges), CIN et
-matricule des chauffeurs, noms des demandeurs et des personnes concernées,
+validation (approval_tokens), codes PIN (utilisateurs_badges), CIN des chauffeurs,
+noms des demandeurs et des personnes concernées,
 signatures, commentaires et motifs en texte libre.
 """
 
@@ -63,7 +63,10 @@ TABLES_MAGASIN = (
             "validated_at",
         ),
     ),
-    # Bons de gasoil : CIN (cin), matricule et nom du demandeur NON copiés
+    # Bons de gasoil : CIN (cin) et nom du demandeur NON copiés.
+    # « matricule » est l'immatriculation du VÉHICULE (confirmé par le
+    # responsable du projet le 25/11/2026 : 35 valeurs, au format plaque),
+    # pas un matricule de salarié ; la colonne « vehicule » est vide.
     TableX3(
         nom="requests_gazoil",
         cle=("id",),
@@ -75,6 +78,7 @@ TABLES_MAGASIN = (
             "qte_saisie",
             "service",
             "vehicule",
+            "matricule",  # immatriculation du véhicule
             "affectation_1",
             "affectation_2",
             "km_parcouru",
