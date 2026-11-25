@@ -35,3 +35,5 @@ sources:
         description: Plan comptable (GACCOUNT), en liste fermée.
       - name: fiscalyear
         description: Exercices comptables (FISCALYEAR).
+      - name: paymenth
+        description: Règlements (PAYMENTH), en liste fermée, sans RIB ni coordonnées du tiers.

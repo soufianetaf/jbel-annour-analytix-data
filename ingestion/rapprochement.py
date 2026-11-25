@@ -272,9 +272,10 @@ SELECT FIY_0 AS exercice,
 FROM {dossier}.BALANCE
 WHERE LEDTYP_0 = 1
   AND (ACC_0 LIKE '6%' OR ACC_0 LIKE '7%')
-  -- BALANCE a une ligne par site ET une ligne de total société (site vide) :
-  -- on ne lit que les totaux, sinon tout est compté deux fois
+  -- BALANCE a une ligne par site et par tiers ET une ligne de total (site et
+  -- tiers vides) : on ne lit que les totaux, sinon tout est compté deux fois
   AND LTRIM(RTRIM(FCY_0)) = ''
+  AND LTRIM(RTRIM(BPR_0)) = ''
 GROUP BY FIY_0
 """
 
@@ -332,6 +333,74 @@ def rapprocher_resultat() -> bool:
     return all(ok for *_, ok in lignes)
 
 
+# ─── Trésorerie : soldes de fin d'exercice, compte par compte ─────────
+
+REQUETE_TRESORERIE_X3 = """
+SELECT FIY_0, LTRIM(RTRIM(ACC_0)), SUM(({debits}) - ({credits}))
+FROM {dossier}.BALANCE
+WHERE LEDTYP_0 = 1
+  AND (ACC_0 LIKE '51%' OR ACC_0 LIKE '55%')
+  AND LTRIM(RTRIM(FCY_0)) = ''   -- lignes de total : site vide…
+  AND LTRIM(RTRIM(BPR_0)) = ''   -- … et tiers vide (sinon chèques et effets comptent double)
+  -- Exercices déjà commencés : X3 reporte d'avance les soldes dans l'exercice suivant
+  AND FIY_0 IN (SELECT FIYNUM_0 FROM {dossier}.FISCALYEAR
+                WHERE LEDTYP_0 = 1 AND FIYSTR_0 <= GETDATE())
+GROUP BY FIY_0, LTRIM(RTRIM(ACC_0))
+"""
+
+# Le dernier solde_fin_jour d'un exercice = somme de ses mouvements.
+# Soldes à ce jour : les écritures datées dans le futur (erreurs de saisie,
+# signalées par un test dbt) sont ignorées, comme dans la BALANCE.
+REQUETE_TRESORERIE_ENTREPOT = """
+SELECT numero_exercice, compte, sum(mouvement)
+FROM marts.agg_tresorerie_jour
+WHERE date_jour <= current_date
+GROUP BY numero_exercice, compte
+"""
+
+
+def comparer_soldes(
+    source: dict[tuple[int, str], Decimal], entrepot: dict[tuple[int, str], Decimal]
+) -> dict[int, tuple[Decimal, Decimal, list[str]]]:
+    """Par exercice : total source, total entrepôt, comptes en écart (≥ 0,01)."""
+    resultat: dict[int, tuple[Decimal, Decimal, list[str]]] = {}
+    for exercice, compte in sorted(set(source) | set(entrepot)):
+        cote_source = source.get((exercice, compte), Decimal(0))
+        cote_entrepot = entrepot.get((exercice, compte), Decimal(0))
+        total_source, total_entrepot, ecarts = resultat.get(exercice, (Decimal(0), Decimal(0), []))
+        if abs(cote_entrepot - cote_source) >= TOLERANCE_MONTANT:
+            ecarts = [*ecarts, compte]
+        resultat[exercice] = (total_source + cote_source, total_entrepot + cote_entrepot, ecarts)
+    return resultat
+
+
+def rapprocher_tresorerie() -> bool:
+    """Soldes de fin d'exercice des comptes 51 et 55 : BALANCE X3 contre l'entrepôt."""
+    source, contexte_x3, connexion_dw = _connexions()
+    debits = " + ".join(f"CAST(DEBLED_{i} AS DECIMAL(28, 4))" for i in PERIODES_BALANCE)
+    credits = " + ".join(f"CAST(CDTLED_{i} AS DECIMAL(28, 4))" for i in PERIODES_BALANCE)
+    try:
+        with contexte_x3 as connexion_x3, connexion_dw.cursor() as curseur_dw:
+            curseur_x3 = connexion_x3.cursor()
+            curseur_x3.execute(
+                REQUETE_TRESORERIE_X3.format(
+                    dossier=_id(source.dossier), debits=debits, credits=credits
+                )
+            )
+            x3 = {(int(e), c): Decimal(m) for e, c, m in curseur_x3.fetchall()}
+            curseur_dw.execute(REQUETE_TRESORERIE_ENTREPOT)
+            dw = {(int(e), c): Decimal(m) for e, c, m in curseur_dw.fetchall()}
+    finally:
+        connexion_dw.close()
+
+    resultat = comparer_soldes(x3, dw)
+    print("\nTrésorerie (comptes 51 et 55), solde de fin d'exercice : BALANCE X3 / entrepôt")
+    for exercice, (total_x3, total_dw, ecarts) in resultat.items():
+        etat = "OK" if not ecarts else f"ÉCART sur {len(ecarts)} compte(s) : {ecarts[:5]}"
+        print(f"  {exercice:<4d} {total_x3:>18,.2f} {total_dw:>18,.2f}   {etat}")
+    return all(not ecarts for *_, ecarts in resultat.values())
+
+
 def _identifiants_psycopg(entrepot) -> dict:
     ident = entrepot.identifiants_dlt()
     return {
@@ -354,8 +423,13 @@ def main(arguments: list[str] | None = None) -> int:
     parseur.add_argument(
         "--resultat", action="store_true", help="résultat par exercice contre la BALANCE X3"
     )
+    parseur.add_argument(
+        "--tresorerie", action="store_true", help="soldes de trésorerie contre la BALANCE X3"
+    )
     options = parseur.parse_args(arguments)
-    tout = not (options.raw or options.ca or options.creances or options.resultat)
+    tout = not (
+        options.raw or options.ca or options.creances or options.resultat or options.tresorerie
+    )
     conforme = True
     if options.raw or tout:
         conforme &= rapprocher_x3_ventes()
@@ -365,6 +439,8 @@ def main(arguments: list[str] | None = None) -> int:
         conforme &= rapprocher_creances()
     if options.resultat or tout:
         conforme &= rapprocher_resultat()
+    if options.tresorerie or tout:
+        conforme &= rapprocher_tresorerie()
     return 0 if conforme else 1
 
 

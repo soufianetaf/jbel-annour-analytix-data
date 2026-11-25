@@ -138,6 +138,7 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 | | Une liste fermée ne copie que les colonnes choisies ; elle reste soumise au contrôle des colonnes sensibles ; la fiche client ne contient ni CIN ni banque | Une colonne ajoutée plus tard dans X3 n'entre jamais sans décision |
 | | Une table incrémentale dont la date de modification ou la clé ne serait pas copiée est refusée ; les échéances sont copiées en incrémental, avec leur clé complète | Sans la date, la copie ne reprendrait pas ; sans la clé, la fusion créerait des doublons |
 | | La requête de rapprochement additionne les 28 colonnes de la BALANCE (à-nouveaux et périodes), registre général seulement ; les écritures sont copiées sans libellé ni nom de tiers | Une période oubliée fausserait le résultat de référence ; un libellé peut contenir un nom de personne |
+| | Les soldes sont comparés compte par compte (deux écarts qui se compensent restent visibles) ; la `BALANCE` est lue sur ses lignes de total (site et tiers vides) | Un total juste peut cacher deux comptes faux ; la `BALANCE` double les comptes suivis par tiers |
 | `tests/test_yaml_dbt.py` | Les YAML de dbt sont valides, et aucune description n'a été coupée par une virgule dans `{ … }` | Une description coupée crée une clé fantôme sans aucune erreur visible |
 | `tests/test_sqlserver.py` | La requête de lecture des données envoyée par dlt contient `WITH (NOLOCK)` | Règle d'or n° 7 : lire Sage X3 sans poser ni attendre de verrou |
 
@@ -148,6 +149,7 @@ uv run python -m ingestion.x3_ventes          # copies raw_x3 contre X3 (lignes,
 uv run python -m ingestion.rapprochement --ca # CA net par année : Sage X3 contre marts.fct_ventes
 uv run python -m ingestion.rapprochement --creances # restes à payer ouverts, clients et fournisseurs
 uv run python -m ingestion.rapprochement --resultat # résultat par exercice : BALANCE de X3 contre l'entrepôt
+uv run python -m ingestion.rapprochement --tresorerie # soldes de trésorerie, compte par compte
 ```
 
 Le rapprochement du CA calcule le même indicateur des deux côtés, mais par deux chemins : les **entêtes** dans Sage X3, les **lignes** dans l'entrepôt. Écart toléré : moins de 0,01 MAD par année (critère d'acceptation n° 1).
@@ -200,6 +202,12 @@ Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à 
 | | `assert_exercices_clotures_soldes` | Un exercice clôturé a ses classes 6 et 7 à zéro, clôture comprise | Une pièce de clôture manquante, ou une écriture perdue ou doublée, est détectée ; garantit que le résultat hors clôture est le résultat de l'exercice |
 | `dim_compte` | `accepted_values` sur `nature` | charge, produit, bilan | Le CPC ne lit que les charges et les produits |
 | `agg_compte_de_resultat_mois` | Unicité (mois, société, compte, exercice) ; rubrique renseignée | Un compte par mois ; chaque compte de classe 6 ou 7 a sa rubrique | Un compte sans rubrique sortirait du CPC présenté par rubrique |
+| `fct_ecritures` | Exercice déduit de la **date** comptable | — | Une pièce datée du 04/04/2025 était saisie sur l'exercice 2024 : se fier au champ « exercice » la mettait dans la mauvaise année (écart de 209 405,34 MAD avec la `BALANCE`) |
+| `stg_x3__lignes_ecriture` | `assert_x3_exercice_coherent_avec_date` (avertissement) | Lignes dont l'exercice saisi contredit la date | Liste les pièces à faire corriger dans Sage X3 |
+| | `assert_x3_ecritures_pas_dans_le_futur` (avertissement) | Écritures datées après le jour du chargement | 16 lignes datées de 2027 (cahier des charges, 5.2) |
+| `stg_x3__reglements` | `unique`, `not_null` ; `accepted_values` sur le sens (1, 2) | Un règlement = une ligne | Encaissement positif, décaissement négatif |
+| `fct_reglements` | **Contrat**, clé primaire ; `accepted_values` sur `sens` | encaissement, décaissement | Table lue par l'API et Power BI |
+| `agg_tresorerie_jour` | **Contrat** ; unicité (jour, exercice, compte) ; familles connues | Un solde par compte et par jour | Le cumul repart à chaque exercice : les à-nouveaux reportent déjà le solde |
 | Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
 
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)

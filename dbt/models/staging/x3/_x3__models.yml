@@ -234,3 +234,16 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [societe, registre, numero_exercice]
+
+  - name: stg_x3__reglements
+    description: "Règlements de Sage X3, sans RIB ni coordonnées du tiers. Grain : un règlement."
+    columns:
+      - name: numero_reglement
+        data_tests: [unique, not_null]
+      - name: code_sens
+        description: "2 encaissement, 1 décaissement (SNS_0)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false

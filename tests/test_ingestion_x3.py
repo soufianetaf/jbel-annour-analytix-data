@@ -208,3 +208,25 @@ def test_comptabilite_sans_libelle_ni_nom_de_tiers() -> None:
 
     assert "DES_0" not in lignes.seulement
     assert "XBPRNAM_0" not in lignes.seulement
+
+
+def test_soldes_compares_compte_par_compte() -> None:
+    # Deux écarts qui se compensent dans le total restent visibles par compte
+    from ingestion.rapprochement import comparer_soldes
+
+    source = {(6, "514A"): Decimal(100), (6, "514B"): Decimal(50)}
+    entrepot = {(6, "514A"): Decimal(150), (6, "514B"): Decimal(0)}
+
+    total_source, total_entrepot, ecarts = comparer_soldes(source, entrepot)[6]
+
+    assert total_source == total_entrepot == Decimal(150)
+    assert ecarts == ["514A", "514B"]
+
+
+def test_balance_lue_sur_ses_lignes_de_total() -> None:
+    # La BALANCE a une ligne par site et par tiers ET une ligne de total
+    from ingestion.rapprochement import REQUETE_TRESORERIE_X3, requete_resultat_x3
+
+    for sql in (requete_resultat_x3("BASE1"), REQUETE_TRESORERIE_X3):
+        assert "LTRIM(RTRIM(FCY_0)) = ''" in sql
+        assert "LTRIM(RTRIM(BPR_0)) = ''" in sql

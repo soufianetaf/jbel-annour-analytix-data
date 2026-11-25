@@ -27,3 +27,16 @@
         else case when left({{ compte }}, 1) in ('6', '7') then '8 - Autres' end
     end
 {%- endmacro %}
+
+
+{# Famille d'un compte de trésorerie (docs/indicateurs/finance_tresorerie.md) #}
+{% macro famille_tresorerie(compte) -%}
+    case
+        when {{ compte }} like '511%' then 'valeurs à encaisser'
+        when {{ compte }} like '514%' then 'banque'
+        when {{ compte }} like '516%' then 'caisse'
+        when {{ compte }} like '552%' then 'crédit de trésorerie'
+        when {{ compte }} like '554%' then 'banque créditrice'
+        else 'autre trésorerie'
+    end
+{%- endmacro %}

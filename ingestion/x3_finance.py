@@ -10,6 +10,7 @@ Utilisation, depuis la racine du dépôt :
     BASE1.GACCENTRYD  lignes d'écritures comptables     → raw_x3.gaccentryd
     BASE1.GACCENTRY   entêtes d'écritures comptables    → raw_x3.gaccentry
     BASE1.GACCOUNT    plan comptable                    → raw_x3.gaccount
+    BASE1.PAYMENTH    règlements (sans RIB)             → raw_x3.paymenth
     BASE1.FISCALYEAR  exercices comptables              → raw_x3.fiscalyear
 
 Les échéances et les écritures dépassent 100 000 lignes et changent sans
@@ -144,6 +145,42 @@ TABLES = (
             "SAC_0",
             "CLSCOD_0",  # code de classement
             "ENAFLG_0",  # actif
+            "UPDDATTIM_0",
+            "ROWID",
+        ),
+    ),
+    # Règlements : contiennent des RIB (XRIB_0, YRIBENDO_0), la banque du
+    # tiers (CHQBAN_0), des numéros de chèque et l'adresse du tiers.
+    # Liste fermée : rien de tout cela n'est copié. 51 000 lignes : copie complète.
+    TableX3(
+        nom="PAYMENTH",
+        cle=("NUM_0",),
+        montant="AMTCUR_0",
+        # BAN_0 et AMTBAN_0 contiennent « BAN_ » mais désignent le compte
+        # bancaire DE L'ENTREPRISE (B01, CAISS…) et le montant passé en banque
+        autorisees=frozenset({"BAN_0", "AMTBAN_0"}),
+        seulement=(
+            "NUM_0",  # numéro du règlement
+            "PAYTYP_0",  # type de règlement (CESP, FEFF…)
+            "PAM_0",  # mode de paiement
+            "BPR_0",  # tiers
+            "BPRSAC_0",  # compte collectif du tiers
+            "BPRTYP_0",  # type de tiers
+            "CPY_0",
+            "FCY_0",
+            "BAN_0",  # banque ou caisse DE L'ENTREPRISE
+            "SNS_0",  # sens : 2 encaissement, 1 décaissement (à confirmer)
+            "CUR_0",
+            "AMTCUR_0",  # montant en devise
+            "AMTBAN_0",  # montant passé en banque
+            "STA_0",  # statut du règlement
+            "ACCDAT_0",  # date comptable
+            "DUDDAT_0",  # date d'échéance
+            "VALDAT_0",  # date de valeur
+            "BANDAT_0",  # date de remise en banque
+            "FIY_0",
+            "PER_0",
+            "CREDATTIM_0",
             "UPDDATTIM_0",
             "ROWID",
         ),

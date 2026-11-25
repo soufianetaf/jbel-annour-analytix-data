@@ -9,6 +9,10 @@
      exactement ce que retient la BALANCE de Sage X3 (vérifié le 25/11/2026 :
      une pièce de clôture IMS12 est en catégorie 2, une simulation SMDIV en 3).
   3. solde = montant × sens (débit positif, crédit négatif), en MAD.
+  5. L'exercice est déduit de la DATE comptable (table des exercices), pas
+     du champ « exercice » de la ligne : une pièce datée du 04/04/2025 était
+     saisie sur l'exercice 2024 (test assert_x3_exercice_coherent_avec_date).
+     C'est aussi ce que fait la BALANCE de Sage X3.
   4. Les pièces de clôture (var « type_piece_cloture », CLOS1) sont gardées
      mais marquées : elles soldent les comptes 6 et 7 au 31/12 et doivent
      être exclues d'un compte de résultat. Ce n'est PAS le journal J42, qui
@@ -27,6 +31,13 @@ pieces as (
     select * from {{ ref('stg_x3__ecritures') }}
     where code_categorie in (1, 2)  -- règle 2
 
+),
+
+exercices as (
+
+    select * from {{ ref('stg_x3__exercices') }}
+    where registre = 1
+
 )
 
 select
@@ -40,7 +51,7 @@ select
     cast(p.code_statut = 2 as boolean)                              as est_definitive,
     cast(l.type_piece = '{{ var("type_piece_cloture") }}' as boolean) as est_cloture,  -- règle 4
     cast(l.date_comptable as date)                                  as date_comptable,
-    cast(l.numero_exercice as integer)                              as numero_exercice,
+    cast(coalesce(x.numero_exercice, l.numero_exercice) as integer) as numero_exercice,  -- règle 5
     cast(l.periode as integer)                                      as periode,
     cast(l.societe as text)                                         as societe,
     cast(l.site as text)                                            as site,
@@ -63,3 +74,6 @@ from lignes as l
 inner join pieces as p
     on p.type_piece = l.type_piece
    and p.numero_piece = l.numero_piece
+left join exercices as x
+    on x.societe = l.societe
+   and l.date_comptable between x.date_debut and x.date_fin

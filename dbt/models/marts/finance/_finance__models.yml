@@ -163,6 +163,67 @@ models:
       - {name: lignes, data_type: integer}
 
 
+  - name: fct_reglements
+    description: >
+      Règlements de Sage X3. Grain : une ligne = un règlement.
+      Encaissement positif, décaissement négatif.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [numero_reglement]
+    columns:
+      - {name: numero_reglement, data_type: text}
+      - {name: type_reglement, data_type: text}
+      - {name: mode_paiement, data_type: text}
+      - name: sens
+        data_type: text
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [encaissement, décaissement]
+      - {name: type_tiers, data_type: text}
+      - {name: code_tiers, data_type: text}
+      - {name: cle_client, data_type: text}
+      - {name: banque_entreprise, data_type: text, description: "Banque ou caisse de l'entreprise (B01, CAISS…)."}
+      - {name: societe, data_type: text}
+      - {name: site, data_type: text}
+      - {name: date_comptable, data_type: date, data_tests: [not_null]}
+      - {name: date_echeance, data_type: date}
+      - {name: date_valeur, data_type: date}
+      - {name: code_statut, data_type: integer}
+      - {name: devise, data_type: text}
+      - {name: montant_devise_signe, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: montant_banque_signe, data_type: "numeric(28,10)"}
+      - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: agg_tresorerie_jour
+    description: >
+      Soldes des comptes de trésorerie (51, 55). Grain : un compte × un jour où il a bougé.
+      Cumul par exercice, à-nouveaux compris.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [date_jour, numero_exercice, cle_compte]
+    columns:
+      - {name: date_jour, data_type: date, data_tests: [not_null]}
+      - {name: numero_exercice, data_type: integer, data_tests: [not_null]}
+      - {name: cle_compte, data_type: text}
+      - {name: compte, data_type: text}
+      - {name: intitule, data_type: text}
+      - name: famille
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [valeurs à encaisser, banque, caisse, crédit de trésorerie, banque créditrice, autre trésorerie]
+      - {name: mouvement, data_type: "numeric(28,10)", description: "Débit - crédit du jour."}
+      - {name: solde_fin_jour, data_type: "numeric(28,10)", description: "Solde après les écritures du jour."}
+      - {name: lignes, data_type: integer}
+
 unit_tests:
   - name: echeances_reste_signe_et_tranches
     description: >
