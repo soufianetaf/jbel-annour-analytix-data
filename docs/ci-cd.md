@@ -135,13 +135,18 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 | | Une colonne décidée qui a disparu de la source est signalée | Un changement de structure dans Sage X3 ne passe pas inaperçu |
 | | La banque de paiement (`PAYBAN_0`) n'est jamais copiée | Donnée bancaire |
 | | Le rapprochement détecte une ligne manquante, un écart de montant d'un centime ou plus, un doublon de clé ; il tolère moins d'un centime | Critère d'acceptation n° 1 : écart inférieur à 0,01 MAD, nul pour les comptages |
+| | Une liste fermée ne copie que les colonnes choisies ; elle reste soumise au contrôle des colonnes sensibles ; la fiche client ne contient ni CIN ni banque | Une colonne ajoutée plus tard dans X3 n'entre jamais sans décision |
+| `tests/test_yaml_dbt.py` | Les YAML de dbt sont valides, et aucune description n'a été coupée par une virgule dans `{ … }` | Une description coupée crée une clé fantôme sans aucune erreur visible |
 | `tests/test_sqlserver.py` | La requête de lecture des données envoyée par dlt contient `WITH (NOLOCK)` | Règle d'or n° 7 : lire Sage X3 sans poser ni attendre de verrou |
 
 **Le rapprochement sur les vraies données** ne peut pas tourner dans la CI (pas d'accès à Sage X3). Il est lancé automatiquement à la fin de chaque copie, sur le poste ou le serveur :
 
 ```powershell
-uv run python -m ingestion.x3_ventes
+uv run python -m ingestion.x3_ventes          # copies raw_x3 contre X3 (lignes, montants, doublons)
+uv run python -m ingestion.rapprochement --ca # CA net par année : Sage X3 contre marts.fct_ventes
 ```
+
+Le rapprochement du CA calcule le même indicateur des deux côtés, mais par deux chemins : les **entêtes** dans Sage X3, les **lignes** dans l'entrepôt. Écart toléré : moins de 0,01 MAD par année (critère d'acceptation n° 1).
 
 #### Projet dbt (job « Projet dbt »)
 
@@ -167,6 +172,15 @@ Ces tests tournent **sur les vraies données**, sur le poste aujourd'hui, et à 
 | | `not_null` sur `representant` (avertissement) | Représentant renseigné | 63 lignes sans représentant : elles échapperaient au filtre « mes clients ». Signalé, pas bloquant |
 | Les deux | `assert_x3_total_lignes_egal_entete` | Pour chaque document, HT des lignes = HT de l'entête (au centime) | Les analyses par article et par client doivent donner le même CA |
 | | Test unitaire `nettoyage_des_vides_deguises_x3` | Sur des lignes d'essai : espaces retirés, `' '` → vide, dates 1753 / 1900 → vide, entête technique sans numéro retiré | Prouve que le nettoyage fonctionne sur les pièges connus de X3, indépendamment des données du moment |
+| `stg_x3__clients`, `stg_x3__articles` | `unique`, `not_null` sur le code | Un client, un article = une ligne | Les dimensions ne doivent jamais dupliquer une vente |
+| | `not_null` sur `nom_client` (avertissement) | Raison sociale renseignée | 9 fiches sans nom (inactives, sans vente) : signalé à l'ADV, pas bloquant |
+| `dim_date`, `dim_client`, `dim_article`, `fct_ventes` | **Contrat** (`contract: enforced`) | Colonnes et types exactement ceux déclarés ; clé primaire posée dans PostgreSQL | Ce sont les tables lues par l'API et Power BI : une colonne renommée ou un type changé **bloque la construction** au lieu de casser un rapport en silence |
+| `dim_client`, `dim_article` | `assert_dimensions_une_ligne_inconnue` | Une et une seule ligne « Inconnu » | Une vente sans client reste comptée ; jamais comptée deux fois |
+| `fct_ventes` | Unicité (`numero_facture`, `numero_ligne`) | Une ligne de facture = une ligne | Grain respecté |
+| | `relationships` vers `dim_date`, `dim_client`, `dim_article` | Chaque vente trouve son jour, son client, son article | Une jointure ne fait jamais disparaître une vente des totaux |
+| | `accepted_values` sur `type_facture` | FAC, AVF, AVR (jamais PRF) | Les pro forma n'entrent jamais dans le CA |
+| | Test unitaire `ventes_avoir_negatif_et_pro_forma_exclue` | Sur des lignes d'essai : un avoir devient négatif, une pro forma disparaît | Les deux règles qui font le CA net, prouvées indépendamment des données |
+| | `assert_ventes_ca_egal_entetes` | CA par année depuis les **lignes** (fct_ventes) = CA depuis les **entêtes** (staging), au centime | Deux chemins indépendants vers le même chiffre : une jointure qui perd ou duplique des lignes est détectée |
 | Sources | `dbt source freshness` | La copie `raw_x3` a moins de 4 h (avertissement), moins de 24 h (erreur) | Un chargement arrêté ne doit pas passer inaperçu : les chiffres seraient vieux sans le savoir |
 
 #### Entrepôt PostgreSQL (job « Entrepôt PostgreSQL »)

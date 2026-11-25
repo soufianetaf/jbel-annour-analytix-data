@@ -105,3 +105,40 @@ models:
         description: Montant TTC de la ligne, positif (AMTATILIN_0).
         data_tests:
           - not_null
+
+  - name: stg_x3__clients
+    description: >
+      Fiches clients de Sage X3, nettoyées. Grain : une ligne = un client.
+      Copiées en liste fermée : ni CIN, ni banque, ni données financières maison.
+    columns:
+      - name: code_client
+        description: Code client (BPCNUM_0). Clé.
+        data_tests:
+          - unique
+          - not_null
+      - name: nom_client
+        description: Raison sociale (BPCNAM_0). 244 noms sont présents plusieurs fois.
+        data_tests:
+          - not_null:
+              # 9 fiches sans nom au 25/11/2026, toutes inactives et sans vente :
+              # anomalie à corriger dans X3 par l'ADV, pas bloquante
+              config:
+                severity: warn
+      - name: representant
+        description: Représentant principal de la fiche client (REP_0).
+
+  - name: stg_x3__articles
+    description: >
+      Fiches articles de Sage X3, nettoyées. Grain : une ligne = un article.
+    columns:
+      - name: code_article
+        description: Code article (ITMREF_0). Clé.
+        data_tests:
+          - unique
+          - not_null
+      - name: designation
+        description: Désignation (ITMDES1_0).
+        data_tests:
+          - not_null
+      - name: poids_unitaire
+        description: Poids d'une unité de stock, dans unite_poids. Vide si non renseigné (0 dans X3).

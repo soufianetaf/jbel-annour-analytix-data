@@ -49,10 +49,15 @@ def test_colonne_decidee_disparue_de_la_source_signalee() -> None:
 
 
 @pytest.mark.parametrize("table", TABLES, ids=lambda t: t.nom)
-def test_chaque_table_a_une_cle_et_un_montant(table) -> None:
+def test_chaque_table_a_une_cle(table) -> None:
     assert table.cle, "la clé sert au contrôle des doublons"
-    assert table.montant, "le montant sert au rapprochement"
     assert table.destination == table.nom.lower()
+
+
+@pytest.mark.parametrize("nom", ["SINVOICE", "SINVOICED"])
+def test_chaque_table_de_mouvements_a_un_montant(nom: str) -> None:
+    # Les factures sont rapprochées en montant ; les référentiels, en lignes
+    assert next(t for t in TABLES if t.nom == nom).montant
 
 
 def test_banque_de_paiement_jamais_copiee() -> None:
@@ -99,3 +104,51 @@ def test_doublon_de_cle_detecte() -> None:
     r = _resultat(Mesure(10, Decimal(100)), Mesure(10, Decimal(100), doublons=1))
 
     assert r.problemes == ["1 doublon(s) sur la clé"]
+
+
+# ─── Listes fermées et CA annuel ────────────────────────────────────
+
+
+def test_liste_fermee_ne_copie_que_les_colonnes_choisies() -> None:
+    # Une colonne ajoutée plus tard dans la source n'entre jamais sans décision
+    source = ["BPCNUM_0", "BPCNAM_0", "XCINGER_0", "PAYBAN_0", "NOUVELLE_0"]
+
+    assert colonnes_a_copier(source, seulement=("BPCNUM_0", "BPCNAM_0")) == [
+        "BPCNUM_0",
+        "BPCNAM_0",
+    ]
+
+
+def test_liste_fermee_avec_colonne_disparue_signalee() -> None:
+    with pytest.raises(ValueError, match="absentes"):
+        colonnes_a_copier(["BPCNUM_0"], seulement=("BPCNUM_0", "BPCNAM_0"))
+
+
+def test_liste_fermee_soumise_au_controle_des_colonnes_sensibles() -> None:
+    # Mettre par erreur le CIN du gérant dans la liste fermée est bloqué
+    with pytest.raises(ColonneSensibleNonDecidee, match="XCINGER_0"):
+        colonnes_a_copier(["BPCNUM_0", "XCINGER_0"], seulement=("BPCNUM_0", "XCINGER_0"))
+
+
+def test_fiche_client_sans_cin_ni_banque() -> None:
+    clients = next(t for t in TABLES if t.nom == "BPCUSTOMER")
+
+    assert clients.seulement is not None
+    for interdite in ("XCINGER_0", "XCINASS_0", "PAYBAN_0", "XTRIB_0", "XPASSIFC_0"):
+        assert interdite not in clients.seulement
+
+
+def test_ca_identique_conforme() -> None:
+    from ingestion.rapprochement import comparer_ca
+
+    ca = {2025: Decimal("100.00"), 2026: Decimal("50.00")}
+
+    assert all(ok for *_, ok in comparer_ca(ca, ca))
+
+
+def test_annee_absente_de_l_entrepot_detectee() -> None:
+    from ingestion.rapprochement import comparer_ca
+
+    lignes = comparer_ca({2025: Decimal(100), 2026: Decimal(50)}, {2026: Decimal(50)})
+
+    assert lignes[0] == (2025, Decimal(100), Decimal(0), False)

@@ -16,3 +16,7 @@ sources:
         description: Entêtes de factures et d'avoirs clients (SINVOICE). Une ligne par document.
       - name: sinvoiced
         description: Lignes de factures et d'avoirs clients (SINVOICED). Une ligne par ligne de document.
+      - name: bpcustomer
+        description: Fiches clients (BPCUSTOMER), en liste fermée de colonnes. Une ligne par client.
+      - name: itmmaster
+        description: Fiches articles (ITMMASTER), en liste fermée de colonnes. Une ligne par article.

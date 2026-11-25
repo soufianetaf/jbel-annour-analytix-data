@@ -1,0 +1,174 @@
+version: 2
+
+# Couche marts : seule couche lue par l'API et Power BI.
+# Chaque table a un CONTRAT : ses colonnes et leurs types sont figés.
+# Si un modèle produit une colonne de plus, de moins ou d'un autre type,
+# dbt refuse de construire la table, au lieu de casser un rapport en silence.
+
+models:
+  # ─── Dimensions ──────────────────────────────────────────────────
+  - name: dim_date
+    description: "Calendrier, du 1er janvier 2020 au 31 décembre 2030. Grain : une ligne = un jour."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [date_jour]
+    columns:
+      - {name: date_jour, data_type: date, description: Le jour. Clé., data_tests: [unique, not_null]}
+      - {name: annee, data_type: integer}
+      - {name: trimestre, data_type: integer}
+      - {name: mois, data_type: integer}
+      - {name: annee_mois, data_type: text, description: "Exemple : 2026-03."}
+      - {name: nom_mois, data_type: text, description: "janvier … décembre"}
+      - {name: annee_iso, data_type: integer, description: Année de la semaine ISO.}
+      - {name: semaine_iso, data_type: integer}
+      - {name: jour_semaine, data_type: integer, description: "1 = lundi … 7 = dimanche."}
+      - {name: nom_jour, data_type: text}
+      - {name: est_dimanche, data_type: boolean}
+
+  - name: dim_client
+    description: >
+      Clients de Sage X3 (BASE1), plus une ligne « Inconnu ».
+      Grain : une ligne = un client. Valeurs actuelles (pas d'historique).
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [cle_client]
+    columns:
+      - {name: cle_client, data_type: text, description: "Clé technique : md5('x3|BASE1|' || code)."}
+      - {name: source, data_type: text}
+      - name: code_client
+        data_type: text
+        description: Code client de Sage X3 (BPCNUM_0). Vide pour la ligne « Inconnu ».
+        data_tests: [unique]
+      - {name: nom_client, data_type: text, data_tests: [not_null]}
+      - {name: intitule_court, data_type: text}
+      - {name: categorie_client, data_type: text, description: "CR, CD (code X3)."}
+      - {name: est_actif, data_type: boolean}
+      - {name: representant, data_type: text, description: Représentant de la fiche client (REP_0).}
+      - {name: representant_2, data_type: text}
+      - {name: condition_paiement, data_type: text}
+      - {name: famille_statistique_1, data_type: text}
+      - {name: devise, data_type: text}
+
+  - name: dim_article
+    description: >
+      Articles de Sage X3 (BASE1), plus une ligne « Inconnu ».
+      Grain : une ligne = un article.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [cle_article]
+    columns:
+      - {name: cle_article, data_type: text, description: "Clé technique : md5('x3|BASE1|' || code)."}
+      - {name: source, data_type: text}
+      - {name: code_article, data_type: text, description: Code article (ITMREF_0)., data_tests: [unique]}
+      - {name: designation, data_type: text, data_tests: [not_null]}
+      - {name: designation_2, data_type: text}
+      - {name: categorie_article, data_type: text, description: "Catégorie (TCLCOD_0), code X3."}
+      - {name: famille_statistique_1, data_type: text}
+      - {name: famille_statistique_2, data_type: text}
+      - {name: famille_statistique_3, data_type: text}
+      - {name: code_statut, data_type: integer}
+      - {name: unite_stock, data_type: text}
+      - {name: unite_vente, data_type: text}
+      - {name: coefficient_vente_stock, data_type: "numeric(28,10)"}
+      - {name: unite_poids, data_type: text}
+      - {name: poids_unitaire, data_type: "numeric(28,10)", description: Poids d'une unité de stock. Vide si non renseigné.}
+
+  # ─── Faits ───────────────────────────────────────────────────────
+  - name: fct_ventes
+    description: >
+      Ventes de Sage X3. Grain : une ligne = une ligne de facture ou d'avoir,
+      pro forma exclues. Montants et quantités SIGNÉS : un avoir est négatif.
+      CA net = somme de montant_ht_signe (docs/indicateurs/ventes_ca_net.md).
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [numero_facture, numero_ligne]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_facture, numero_ligne]
+    columns:
+      - {name: numero_facture, data_type: text, data_tests: [not_null]}
+      - {name: numero_ligne, data_type: integer, data_tests: [not_null]}
+      - name: type_document
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [facture, avoir]
+      - name: type_facture
+        data_type: text
+        description: "FAC, AVF, AVR. Jamais PRF (pro forma exclues)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [FAC, AVF, AVR]
+      - {name: signe, data_type: integer}
+      - name: date_comptable
+        data_type: date
+        description: Date de rattachement du CA. Clé vers dim_date.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_jour
+      - name: cle_client
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_client')
+                field: cle_client
+      - name: cle_article
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_article')
+                field: cle_article
+      - {name: code_client, data_type: text}
+      - {name: code_article, data_type: text}
+      - {name: representant, data_type: text, description: Représentant de la ligne (REP1_0).}
+      - {name: societe, data_type: text}
+      - {name: site, data_type: text}
+      - {name: numero_commande, data_type: text}
+      - {name: numero_livraison, data_type: text}
+      - {name: date_facture, data_type: date}
+      - {name: quantite_signee, data_type: "numeric(28,10)", description: "Quantité en unité de vente, négative pour un avoir."}
+      - {name: unite_vente, data_type: text}
+      - {name: prix_net, data_type: "numeric(28,10)", description: Prix unitaire net (non signé).}
+      - {name: montant_ht_signe, data_type: "numeric(28,10)", description: "Montant HT, négatif pour un avoir. CA net = somme.", data_tests: [not_null]}
+      - {name: montant_ttc_signe, data_type: "numeric(28,10)", data_tests: [not_null]}
+      - {name: charge_le, data_type: timestamp with time zone, description: Date de la copie depuis Sage X3.}
+
+unit_tests:
+  - name: ventes_avoir_negatif_et_pro_forma_exclue
+    description: >
+      Un avoir devient négatif, une pro forma disparaît : les deux règles
+      qui font le CA net.
+    model: fct_ventes
+    given:
+      - input: ref('stg_x3__factures')
+        rows:
+          - {numero_facture: F1, type_facture: FAC, signe: 1, client: C1, date_comptable: "2026-03-01"}
+          - {numero_facture: A1, type_facture: AVF, signe: -1, client: C1, date_comptable: "2026-03-05"}
+          - {numero_facture: P1, type_facture: PRF, signe: 1, client: C1, date_comptable: "2026-03-07"}
+      - input: ref('stg_x3__lignes_facture')
+        rows:
+          - {numero_facture: F1, numero_ligne: 1, article: B12, quantite: 10, montant_ht: 1000, montant_ttc: 1200}
+          - {numero_facture: A1, numero_ligne: 1, article: B12, quantite: 2, montant_ht: 200, montant_ttc: 240}
+          - {numero_facture: P1, numero_ligne: 1, article: B12, quantite: 5, montant_ht: 500, montant_ttc: 600}
+    expect:
+      rows:
+        - {numero_facture: F1, type_document: facture, quantite_signee: 10, montant_ht_signe: 1000, montant_ttc_signe: 1200}
+        - {numero_facture: A1, type_document: avoir, quantite_signee: -2, montant_ht_signe: -200, montant_ttc_signe: -240}

@@ -407,6 +407,8 @@ cd dbt
 uv run --env-file ../.env dbt deps                  # installe les bibliothèques dbt
 uv run --env-file ../.env dbt build                 # construit les modèles et lance tous les tests
 uv run --env-file ../.env dbt source freshness      # vérifie que les copies sont récentes
+cd ..
+uv run python -m ingestion.rapprochement --ca       # CA net par année : Sage X3 contre l'entrepôt
 uv run pytest                                    # lance les tests
 ```
 

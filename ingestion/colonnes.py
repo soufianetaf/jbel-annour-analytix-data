@@ -33,19 +33,29 @@ def colonnes_a_copier(
     colonnes: Iterable[str],
     exclues: Iterable[str] = (),
     autorisees: Iterable[str] = (),
+    seulement: Iterable[str] | None = None,
 ) -> list[str]:
     """Liste des colonnes à copier, dans l'ordre de la source.
 
     - ``exclues``    : jamais copiées (données sensibles ou inutiles) ;
-    - ``autorisees`` : repérées par le contrôle, mais vérifiées et sans risque.
+    - ``autorisees`` : repérées par le contrôle, mais vérifiées et sans risque ;
+    - ``seulement``  : liste fermée. Si elle est donnée, SEULES ces colonnes
+      sont copiées : une colonne ajoutée plus tard dans la source n'entre
+      jamais sans décision. À utiliser pour les tables qui contiennent des
+      données sensibles (ex. fiche client : CIN du gérant, banque).
     """
     exclues, autorisees = set(exclues), set(autorisees)
     colonnes = list(colonnes)
 
-    inconnues = (exclues | autorisees) - set(colonnes)
+    decidees = exclues | autorisees | set(seulement or ())
+    inconnues = decidees - set(colonnes)
     if inconnues:
         # Une colonne décidée qui n'existe plus : la source a changé de structure
         raise ValueError(f"colonnes décidées absentes de la source : {sorted(inconnues)}")
+
+    if seulement is not None:
+        liste = set(seulement)
+        colonnes = [nom for nom in colonnes if nom in liste]
 
     non_decidees = [
         nom
