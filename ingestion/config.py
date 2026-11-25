@@ -62,6 +62,10 @@ class SourceSqlServer(BaseSettings):
     auth: Literal["sql", "windows"] = "sql"
     user: str | None = None
     password: SecretStr | None = None
+    # Dérogation : accepter un compte qui peut écrire (ex. « sa » sur le
+    # serveur de l'usine), en dev comme en prod, avec un avertissement.
+    # Variable : <SOURCE>_COMPTE_ADMIN_ACCEPTE
+    compte_admin_accepte: bool = False
 
     @property
     def configuree(self) -> bool:

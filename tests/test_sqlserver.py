@@ -4,7 +4,7 @@ import pytest
 from pydantic import SecretStr
 
 from ingestion.config import Parametres, SourceUsine, SourceX3
-from ingestion.sqlserver import chaine_connexion, droits_interdits
+from ingestion.sqlserver import chaine_connexion, decision_compte, droits_interdits
 
 PARAMS = Parametres(_env_file=None)
 
@@ -142,3 +142,22 @@ def test_dossier_x3_en_lecture_seule_accepte() -> None:
 def test_droit_inconnu_du_serveur_non_bloquant() -> None:
     # IS_ROLEMEMBER renvoie NULL (None) si le rôle n'existe pas : pas un droit
     assert droits_interdits(LECTURE_SEULE | {"db_ddladmin": None}) == []
+
+
+# ─── Décision : compte accepté, toléré ou refusé ───────────────────
+
+COMPTE_SA = ["administrateur de tout le serveur (sysadmin, comme le compte « sa »)"]
+
+
+def test_compte_lecture_seule_accepte_sans_derogation() -> None:
+    assert decision_compte([], compte_admin_accepte=False) == "ok"
+
+
+def test_compte_admin_refuse_par_defaut() -> None:
+    # Sans dérogation explicite dans .env, un compte qui peut écrire est refusé
+    assert decision_compte(COMPTE_SA, compte_admin_accepte=False) == "refuse"
+
+
+def test_compte_admin_tolere_avec_derogation() -> None:
+    # Dérogation décidée par l'entreprise : valable en dev comme en prod
+    assert decision_compte(COMPTE_SA, compte_admin_accepte=True) == "tolere"

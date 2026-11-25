@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from ingestion.config import Parametres, SourceSqlServer
 
@@ -155,6 +155,28 @@ def droits_interdits(droits: dict[str, Any]) -> list[str]:
             if droits_schema.get(droit) == 1
         )
     return problemes
+
+
+Decision = Literal["ok", "tolere", "refuse"]
+
+
+def decision_compte(problemes: list[str], compte_admin_accepte: bool) -> Decision:
+    """Décide si l'on peut lire une source avec ce compte.
+
+    - ``ok``     : compte en lecture seule ;
+    - ``tolere`` : compte qui peut écrire, accepté explicitement dans .env
+      (dérogation décidée par l'entreprise, en dev comme en prod) ;
+    - ``refuse`` : compte qui peut écrire, sans dérogation.
+
+    Avec un compte toléré, la lecture seule n'est plus garantie par le
+    serveur : seul le code d'Analytix, qui n'exécute que des lectures,
+    protège la source.
+    """
+    if not problemes:
+        return "ok"
+    if compte_admin_accepte:
+        return "tolere"
+    return "refuse"
 
 
 def verifier_droits(

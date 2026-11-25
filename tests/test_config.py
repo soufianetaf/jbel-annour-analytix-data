@@ -81,3 +81,18 @@ def test_environnement_inconnu_refuse(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(ValidationError):
         Parametres(_env_file=None)
+
+
+def test_exception_compte_admin_desactivee_par_defaut(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("USINE_HOST", "serveur")
+    monkeypatch.setenv("USINE_AUTH", "windows")
+
+    assert SourceUsine(_env_file=None).compte_admin_accepte is False
+
+
+def test_exception_compte_admin_propre_a_chaque_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    # L'exception de l'usine ne s'applique pas à Sage X3
+    monkeypatch.setenv("USINE_COMPTE_ADMIN_ACCEPTE", "yes")
+
+    assert SourceUsine(_env_file=None).compte_admin_accepte is True
+    assert SourceX3(_env_file=None).compte_admin_accepte is False
