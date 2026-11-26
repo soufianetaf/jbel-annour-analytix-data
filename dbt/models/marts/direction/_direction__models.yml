@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: agg_direction_mois
+    description: >
+      Tableau de bord de la direction : CA, résultat, trésorerie, production,
+      coût et marge, énergie, arrêts. Grain : un mois. Chaque chiffre vient
+      d'une table déjà rapprochée de sa source.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [mois]
+    columns:
+      - {name: mois, data_type: date}
+      - {name: ca_net, data_type: "numeric(28,2)"}
+      - {name: resultat, data_type: "numeric(28,2)", description: "Résultat comptable du mois, clôtures exclues."}
+      - {name: tresorerie_fin_mois, data_type: "numeric(28,2)"}
+      - {name: tonnes_cuites, data_type: "numeric(18,3)"}
+      - {name: tonnes_briques_vendues, data_type: "numeric(18,3)"}
+      - {name: cout_par_tonne, data_type: "numeric(18,2)", description: "Sur 12 mois glissants."}
+      - {name: cout_energie_par_tonne, data_type: "numeric(18,2)", description: "Sur 12 mois glissants."}
+      - {name: marge_briques, data_type: "numeric(28,2)"}
+      - {name: kwh_par_tonne, data_type: "numeric(12,3)"}
+      - {name: heures_arret_maintenance, data_type: "numeric(12,2)"}

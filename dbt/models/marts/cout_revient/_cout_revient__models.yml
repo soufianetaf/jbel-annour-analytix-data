@@ -1,0 +1,101 @@
+version: 2
+
+models:
+  - name: fct_charges_production_mois
+    description: >
+      Charges d'exploitation (61) par compte et par mois, rangées par famille
+      de coût. Grain : un compte × un mois. Définitions : docs/indicateurs/cout_revient.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [mois, societe, compte]
+    columns:
+      - {name: mois, data_type: date}
+      - {name: societe, data_type: text}
+      - {name: compte, data_type: text}
+      - {name: intitule, data_type: text}
+      - name: famille_cout
+        data_type: text
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - hors coût de revient
+                  - combustibles
+                  - électricité
+                  - argile et matières premières
+                  - emballages
+                  - entretien et pièces de rechange
+                  - autres consommables
+                  - prestations de services
+                  - locations et crédit-bail
+                  - personnel
+                  - amortissements et provisions
+                  - autres charges
+      - {name: charge, data_type: "numeric(28,2)", description: "Positif pour une charge."}
+
+  - name: agg_cout_revient_mois
+    description: >
+      Coût de revient par tonne cuite, du mois et sur 12 mois glissants.
+      Grain : un mois.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [mois]
+    columns:
+      - {name: mois, data_type: date}
+      - {name: charges_production, data_type: "numeric(28,2)", description: "Charges d'exploitation hors marchandises revendues."}
+      - {name: charges_energie, data_type: "numeric(28,2)", description: "Combustibles + électricité."}
+      - {name: amortissements, data_type: "numeric(28,2)", description: "Passés seulement en décembre."}
+      - {name: tonnes_cuites, data_type: "numeric(18,3)"}
+      - {name: cout_par_tonne_mois, data_type: "numeric(18,2)", description: "À ne pas lire seul : amortissements et régularisations."}
+      - {name: cout_energie_par_tonne_mois, data_type: "numeric(18,2)"}
+      - {name: charges_12_mois, data_type: "numeric(28,2)"}
+      - {name: tonnes_12_mois, data_type: "numeric(18,3)"}
+      - {name: cout_par_tonne_12_mois, data_type: "numeric(18,2)", description: "L'indicateur à lire ; vide tant que 12 mois de tonnes ne sont pas connus."}
+      - {name: cout_energie_par_tonne_12_mois, data_type: "numeric(18,2)"}
+      - {name: mois_avec_tonnes, data_type: integer}
+
+  - name: agg_marge_type_brique_mois
+    description: >
+      Prix, coût et marge par tonne de chaque type de brique vendu. Grain : un
+      type de brique × un mois.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [mois, type_brique]
+    columns:
+      - {name: mois, data_type: date}
+      - {name: type_brique, data_type: text}
+      - {name: unites_vendues, data_type: "numeric(18,2)"}
+      - {name: tonnes_vendues, data_type: "numeric(18,3)"}
+      - {name: ca_ht, data_type: "numeric(28,2)"}
+      - {name: prix_par_tonne, data_type: "numeric(18,2)"}
+      - {name: cout_par_tonne, data_type: "numeric(18,2)", description: "Coût du site sur 12 mois glissants, le même pour tous les types."}
+      - {name: marge_par_tonne, data_type: "numeric(18,2)"}
+      - {name: marge, data_type: "numeric(28,2)"}
+      - {name: lignes_sans_poids, data_type: integer}
+
+unit_tests:
+  - name: marge_par_tonne_de_brique
+    description: >
+      1 000 briques B8 de 2,5 kg = 2,5 t vendues 1 500 MAD : 600 MAD la tonne ;
+      avec un coût de 400 MAD la tonne, la marge est de 200 MAD la tonne, 500 MAD en tout.
+    model: agg_marge_type_brique_mois
+    given:
+      - input: ref('fct_ventes')
+        rows:
+          - {date_comptable: "2026-06-10", cle_article: a, unite_vente: UN, quantite_signee: 1000, montant_ht_signe: 1500}
+      - input: ref('int_cout_revient__poids_briques')
+        rows:
+          - {cle_article: a, type_brique: B8, poids_kg: 2.5}
+      - input: ref('agg_cout_revient_mois')
+        rows:
+          - {mois: "2026-06-01", cout_par_tonne_12_mois: 400}
+    expect:
+      rows:
+        - {mois: "2026-06-01", type_brique: B8, tonnes_vendues: 2.500, prix_par_tonne: 600.00, cout_par_tonne: 400.00, marge_par_tonne: 200.00, marge: 500.00}

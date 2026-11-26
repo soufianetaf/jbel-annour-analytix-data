@@ -66,4 +66,5 @@ Position à ce jour, exercice 2026 (M MAD) :
 - **21,88 M MAD en caisse** : montant très peu plausible pour des espèces. Probablement des encaissements en espèces enregistrés en caisse mais jamais versés en banque dans Sage X3 (ou versés sans écriture de transfert). À rapprocher de l'inventaire physique des caisses.
 - **Banque à -2,82 M MAD** alors que la caisse est très positive : à rapprocher des relevés bancaires (`XRELBANK`).
 - Un crédit de trésorerie (passif) en solde **débiteur** (+1,58 M MAD) : à vérifier.
+- **Au 31/12, `agg_tresorerie_jour` vaut 0** : la pièce de clôture (CLOS1) solde les comptes de trésorerie, les à-nouveaux du 1er janvier les rouvrent. C'est exactement la `BALANCE` de Sage X3 (le rapprochement passe), mais pour une position de fin d'année il faut lire le 30/12 ou `agg_direction_mois`, qui calcule la trésorerie de fin de mois sans la clôture (constaté le 26/11/2026).
 - **16 lignes d'écritures datées de janvier 2027** et **1 pièce saisie sur l'exercice 2024 mais datée du 04/04/2025** (`1010409DECAI000911`) : signalées par deux tests dbt en avertissement.

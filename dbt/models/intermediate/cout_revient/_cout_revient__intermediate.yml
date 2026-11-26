@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: int_cout_revient__poids_briques
+    description: >
+      Articles briques vendus, leur type (B8, B10, B12…) et leur poids : celui
+      de Sage X3 s'il est plausible, sinon le poids pesé à la sortie du four.
+    columns:
+      - name: cle_article
+        data_tests: [unique, not_null]
+      - name: type_brique
+        data_tests: [not_null]
+
+unit_tests:
+  - name: brique_type_et_poids
+    description: >
+      Le type est lu dans la désignation (« BRIQUE BLCH8 » → B8,
+      « BRIQUE 250/200/100 PL (B10) » → B10, « BRIQUE_12 » → B12) ; une brique
+      réfractaire n'est pas une brique vendue. Un poids Sage X3 de 0,01 kg est
+      remplacé par le poids pesé à la sortie du four.
+    model: int_cout_revient__poids_briques
+    given:
+      - input: ref('dim_article')
+        rows:
+          - {cle_article: a, code_article: A00154, designation: BRIQUE BLCH8, unite_poids: KG, poids_unitaire: 2.4}
+          - {cle_article: b, code_article: A00145, designation: "BRIQUE 250/200/100 PL (B10)", unite_poids: KG, poids_unitaire: 2.8}
+          - {cle_article: c, code_article: A14826, designation: BRIQUE_12, unite_poids: KG, poids_unitaire: 0.01}
+          - {cle_article: d, code_article: A00001, designation: BRIQUE REFRACTAIRE 3, unite_poids: KG, poids_unitaire: 3}
+      - input: ref('fct_pesees_briques')
+        rows:
+          - {zone: four, type_brique: B12-25, poids_moyen_kg: 3.9}
+          - {zone: four, type_brique: B12-25, poids_moyen_kg: 4.0}
+          - {zone: four, type_brique: B12-25, poids_moyen_kg: 4.1}
+    expect:
+      rows:
+        - {cle_article: a, type_brique: B8, poids_kg: 2.4, origine_poids: Sage X3}
+        - {cle_article: b, type_brique: B10, poids_kg: 2.8, origine_poids: Sage X3}
+        - {cle_article: c, type_brique: B12, poids_kg: 4.0, origine_poids: pesées du four}
