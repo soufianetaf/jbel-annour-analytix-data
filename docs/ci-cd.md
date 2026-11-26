@@ -140,6 +140,7 @@ Le `.gitignore` empêche déjà d'ajouter ces fichiers par erreur. Ce contrôle 
 | | La requête de rapprochement additionne les 28 colonnes de la BALANCE (à-nouveaux et périodes), registre général seulement ; les écritures sont copiées sans libellé ni nom de tiers | Une période oubliée fausserait le résultat de référence ; un libellé peut contenir un nom de personne |
 | | Les soldes sont comparés compte par compte (deux écarts qui se compensent restent visibles) ; la `BALANCE` est lue sur ses lignes de total (site et tiers vides) | Un total juste peut cacher deux comptes faux ; la `BALANCE` double les comptes suivis par tiers |
 | `tests/test_usine_rh.py` | La copie RH fusionne tout groupe de moins de 5 personnes sans perdre les totaux, vide le temps sur site d'un groupe fusionné resté petit, et **aucune requête RH ne lit une colonne personnelle** (nom, téléphone, CIN, taux horaire, RIB, CV…) ; chaque requête est une agrégation | Règle d'or : aucune donnée RH individuelle ne quitte le serveur source. Une requête modifiée par erreur est arrêtée avant d'être exécutée |
+| `tests/test_api.py` | Connexion (bon et mauvais mot de passe, compte inconnu ou désactivé : même réponse), jeton expiré ou signé par une autre clé refusé, compte désactivé **après** connexion refusé tout de suite ; **chaque** route de données déclare un domaine et exige une connexion ; **matrice des droits** : chaque rôle reçoit 200 sur ses domaines et 403 partout ailleurs ; le représentant est filtré sur son code dans le SQL (sans code : 403) ; le journal des accès écrit qui, quoi et le statut, jamais le mot de passe ni le jeton ; mêmes rôles dans l'API et dans l'entrepôt | Exigence du cahier des charges : aucun utilisateur ne peut obtenir une donnée hors de son rôle. Une route ajoutée sans domaine fait échouer le test |
 | `tests/test_qualite_donnees.py` | **Chaque** test dbt en avertissement (YAML ou fichier SQL) a `store_failures`, un service responsable (`meta.service`) et une marche à suivre (`meta.correction`) | Un avertissement ajouté sans responsable n'apparaîtrait à personne sur la page « Qualité des données » : le test le refuse dès l'ajout |
 | `tests/test_photos_dbt.py` | **Chaque** photo quotidienne (dossier `dbt/models/snapshots`) a `full_refresh=false`, est incrémentale et remplace seulement la photo du jour | Une nouvelle photo oubliée sans cette protection serait effacée par un `--full-refresh` : le test l'interdit dès l'ajout |
 | `infra/ci/verifier_types_staging.py` (outil, et son test) | Chaque macro de nettoyage (`texte_x3`, `date_x3`…) s'applique à une colonne du bon type dans raw | Dans X3, une même colonne est un texte dans une table et un nombre dans une autre : l'outil liste tout d'un coup, avant la construction dbt |
@@ -276,11 +277,13 @@ La CI démarre un **PostgreSQL 16 jetable** (détruit à la fin du job), y lance
 
 | Test | Pourquoi |
 |---|---|
-| Les 5 schémas existent ; le compte de chargement peut créer un schéma `raw_…` | L'ingestion crée elle-même un schéma par source |
+| Les 6 schémas existent (dont `api`) ; le compte de chargement peut créer un schéma `raw_…` | L'ingestion crée elle-même un schéma par source |
 | L'API lit une table de `marts` **créée après** l'initialisation | Vérifie les droits par défaut : chaque table que dbt créera sera lisible sans intervention |
 | L'API ne peut ni insérer, ni créer de table | Lecture seule forcée par le serveur |
 | L'API ne peut pas lire `staging` | Seule la couche `marts` est exposée |
 | Même en désactivant la lecture seule dans sa session, l'API ne peut pas écrire | Deux protections indépendantes : la lecture seule **et** les droits |
+| L'API lit les comptes (`api.utilisateurs`) mais ne peut ni en ajouter ni changer un rôle, même hors lecture seule | Personne ne se donne un rôle par l'API ; seul l'outil `api.comptes` (compte du chargeur) écrit les comptes |
+| Le groupe de lecture de `marts` ne voit pas les comptes | Power BI passera par ce groupe : jamais les empreintes de mot de passe |
 
 Ces tests ne tournent que sur une base nommée `dw_test`, jamais sur `dw_dev` ni `dw_prod`. Les mots de passe du job n'existent que dans ce conteneur jetable.
 

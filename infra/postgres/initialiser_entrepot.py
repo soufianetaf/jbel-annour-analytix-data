@@ -30,7 +30,9 @@ Ce que l'on obtient :
 
     base dw_dev
       staging, intermediate, marts, snapshots, quality
-      (les schémas raw_<source> sont créés par l'ingestion)
+      api : comptes de la plateforme (lus par analytix_api seulement)
+      (les schémas raw_<source> et qualite_donnees sont créés par
+      l'ingestion et par dbt)
 """
 
 from __future__ import annotations
@@ -53,7 +55,20 @@ IDENTIFIANT = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 
 PREFIXE_ROLES = "analytix_"
 GROUPE_LECTURE_MARTS = "analytix_lecture_marts"
-SCHEMAS = ("staging", "intermediate", "marts", "snapshots", "quality")
+SCHEMAS = ("staging", "intermediate", "marts", "snapshots", "quality", "api")
+# Rôles applicatifs de l'API (cahier des charges, rôles) : la même liste est
+# vérifiée dans api/roles.py par un test
+ROLES_APPLICATIFS = (
+    "direction",
+    "commercial",
+    "representant",
+    "production",
+    "maintenance",
+    "achats",
+    "finance",
+    "rh",
+    "administrateur",
+)
 FUSEAU_HORAIRE = "Africa/Casablanca"
 # Une requête de l'API plus longue que ce délai est interrompue
 DELAI_REQUETE_API = "30s"
@@ -207,7 +222,40 @@ def plan_entrepot(config: ConfigEntrepot) -> list[Instruction]:
             f"GRANT SELECT ON TABLES TO {lecture}"
         ),
     ]
+    instructions += plan_comptes_api(config)
     return instructions
+
+
+def plan_comptes_api(config: ConfigEntrepot) -> list[Instruction]:
+    """Table des comptes de la plateforme (schéma api).
+
+    Le mot de passe n'y est jamais en clair : seulement son empreinte Argon2.
+    Seul le compte de l'API la lit (pas le groupe de lecture de marts, qui
+    servira aussi à Power BI) ; seul le chargeur l'écrit (outil
+    ``python -m api.comptes``).
+    """
+    chargeur, api = _q(config.dw_user), _q(config.api_db_user)
+    roles = ", ".join(f"'{r}'" for r in ROLES_APPLICATIFS)
+    return [
+        Instruction(
+            'CREATE TABLE IF NOT EXISTS "api"."utilisateurs" ('
+            "identifiant text PRIMARY KEY CHECK (identifiant ~ '^[a-z0-9._-]{3,64}$'), "
+            "empreinte_mot_de_passe text NOT NULL, "
+            "role text NOT NULL, "
+            "representant text, "
+            "actif boolean NOT NULL DEFAULT true, "
+            "cree_le timestamptz NOT NULL DEFAULT now(), "
+            "modifie_le timestamptz NOT NULL DEFAULT now())"
+        ),
+        # La liste des rôles est remise à jour à chaque passage
+        Instruction('ALTER TABLE "api"."utilisateurs" DROP CONSTRAINT IF EXISTS role_connu'),
+        Instruction(
+            f'ALTER TABLE "api"."utilisateurs" ADD CONSTRAINT role_connu CHECK (role IN ({roles}))'
+        ),
+        Instruction(f'ALTER TABLE "api"."utilisateurs" OWNER TO {chargeur}'),
+        Instruction(f'GRANT USAGE ON SCHEMA "api" TO {api}'),
+        Instruction(f'GRANT SELECT ON "api"."utilisateurs" TO {api}'),
+    ]
 
 
 def construire_plan(config: ConfigEntrepot, roles_existants: set[str], base_existe: bool) -> Plan:

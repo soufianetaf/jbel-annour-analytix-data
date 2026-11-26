@@ -85,7 +85,7 @@ def test_schemas_crees(entrepot: ConfigEntrepot) -> None:
     ):
         curseur.execute("SELECT schema_name FROM information_schema.schemata")
         schemas = {ligne[0] for ligne in curseur.fetchall()}
-    assert {"staging", "intermediate", "marts", "snapshots", "quality"} <= schemas
+    assert {"staging", "intermediate", "marts", "snapshots", "quality", "api"} <= schemas
 
 
 def test_chargeur_peut_creer_un_schema_raw(entrepot: ConfigEntrepot) -> None:
@@ -126,3 +126,33 @@ def test_api_meme_hors_lecture_seule_ne_peut_pas_ecrire(api) -> None:
     api.execute("SET default_transaction_read_only = off")
     with pytest.raises(errors.InsufficientPrivilege):
         api.execute("INSERT INTO marts.essai_acces VALUES (3)")
+
+
+def test_api_lit_les_comptes(api) -> None:
+    # La connexion des utilisateurs relit leur compte à chaque requête
+    api.execute("SELECT count(*) FROM api.utilisateurs")
+    assert api.fetchone()[0] >= 0
+
+
+def test_api_ne_peut_pas_modifier_les_comptes(api) -> None:
+    # Personne ne se donne un rôle par l'API : même hors lecture seule, refusé
+    api.execute("SET default_transaction_read_only = off")
+    with pytest.raises(errors.InsufficientPrivilege):
+        api.execute(
+            "INSERT INTO api.utilisateurs (identifiant, empreinte_mot_de_passe, role) "
+            "VALUES ('intrus', 'x', 'direction')"
+        )
+    with pytest.raises(errors.InsufficientPrivilege):
+        api.execute("UPDATE api.utilisateurs SET role = 'direction'")
+
+
+def test_groupe_de_lecture_ne_voit_pas_les_comptes(entrepot: ConfigEntrepot) -> None:
+    # Power BI passera par le groupe de lecture de marts : jamais les empreintes
+    with (
+        closing(_connexion(entrepot, entrepot.dw_user, entrepot.dw_password)) as connexion,
+        connexion.cursor() as curseur,
+    ):
+        curseur.execute(
+            "SELECT has_table_privilege('analytix_lecture_marts', 'api.utilisateurs', 'SELECT')"
+        )
+        assert curseur.fetchone()[0] is False
