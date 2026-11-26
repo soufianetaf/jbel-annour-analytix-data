@@ -427,6 +427,7 @@ uv run python -m ingestion.rapprochement            # tous les rapprochements
 uv run pytest                                    # lance les tests
 uv run python -m api.comptes creer s.alami --role direction   # crée un compte (mot de passe demandé au clavier)
 uv run uvicorn api.main:app --reload             # lance l'API : http://localhost:8000/docs (voir docs/api.md)
+uv run dagster dev -m orchestration              # orchestration : http://localhost:3000 (voir docs/orchestration.md)
 ```
 
 ---

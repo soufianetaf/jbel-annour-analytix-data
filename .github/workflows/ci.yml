@@ -13,6 +13,7 @@
 #    - étape 3     : initialisation de l'entrepôt et droits des comptes
 #    - dbt         : compilation, tests, tests unitaires
 #    - API         : tests d'accès par rôle
+#    - Dagster     : orchestration (dans le job dbt)
 # ════════════════════════════════════════════════════════════════
 
 name: CI
@@ -159,3 +160,9 @@ jobs:
         # serait sinon lu comme une clé YAML).
         run: |
           uv run dbt parse --warn-error-options '{"error": ["NoNodesForSelectionCriteria"]}'
+
+      - name: Orchestration Dagster (copies, dbt, rapprochements, planification)
+        # Les définitions Dagster lisent le projet dbt compilé par l'étape
+        # précédente (target/manifest.json) : ces tests tournent donc ici.
+        working-directory: .
+        run: uv run pytest tests/test_orchestration.py -v

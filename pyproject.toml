@@ -27,11 +27,16 @@ dependencies = [
     "argon2-cffi>=23.1",
     "pyjwt>=2.10",
     "python-multipart>=0.0.20",
+    # Orchestration : copies, dbt et rapprochements toutes les deux heures
+    "dagster>=1.9",
+    "dagster-dbt>=0.25",
 ]
 
 [dependency-groups]
 # Outils du développeur et de la CI, jamais installés en production
 dev = [
+    # Interface web de Dagster (dagster dev), sur le poste ou le serveur d'orchestration
+    "dagster-webserver>=1.9",
     "httpx>=0.28",
     "pytest>=8.3",
     "ruff>=0.8",
