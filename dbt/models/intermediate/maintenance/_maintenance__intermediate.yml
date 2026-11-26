@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: int_maintenance__tournees_retenues
+    description: >
+      Tournées préventives avec la décision de les retenir : une seule par
+      zone, poste et jour (avec résultats, validée de préférence, la plus récente).
+    data_tests:
+      # Le cœur de la règle : jamais deux tournées retenues pour la même zone, le même poste, le même jour
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [zone, poste, jour]
+          config:
+            where: "est_retenue"
+    columns:
+      - name: id_tournee
+        data_tests: [unique, not_null]
+
+unit_tests:
+  - name: tournee_une_seule_saisie_retenue
+    description: >
+      Trois saisies de la tournée du four, 23h-07h, le 07/10/2026 : une validée
+      sans résultat, un brouillon avec résultats, une validée avec résultats
+      plus ancienne. C'est la validée avec résultats qui est retenue.
+    model: int_maintenance__tournees_retenues
+    given:
+      - input: ref('stg_maintenance__tournees')
+        rows:
+          - {id_tournee: 1, id_rapport: 18, jour: "2026-10-07", statut: 2, modifie_le: "2026-10-07 02:30:00"}
+          - {id_tournee: 2, id_rapport: 18, jour: "2026-10-07", statut: 1, modifie_le: "2026-10-07 02:20:00"}
+          - {id_tournee: 3, id_rapport: 18, jour: "2026-10-07", statut: 2, modifie_le: "2026-10-07 02:10:00"}
+      - input: ref('stg_maintenance__rapports')
+        rows:
+          - {id_rapport: 18, zone: four, poste: "23h00 - 07h00"}
+      - input: ref('stg_maintenance__resultats')
+        rows:
+          - {id_resultat: 10, id_tournee: 2}
+          - {id_resultat: 11, id_tournee: 3}
+    expect:
+      rows:
+        - {id_tournee: 1, est_retenue: false, saisies_de_la_tournee: 3}
+        - {id_tournee: 2, est_retenue: false, saisies_de_la_tournee: 3}
+        - {id_tournee: 3, est_retenue: true, saisies_de_la_tournee: 3}

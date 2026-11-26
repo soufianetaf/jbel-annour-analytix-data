@@ -1,0 +1,141 @@
+version: 2
+
+models:
+  - name: stg_maintenance__equipements
+    description: "Équipements de l'usine, code Sage X3 et machine. Grain : un équipement."
+    columns:
+      - name: id_equipement
+        data_tests: [unique, not_null]
+
+  - name: stg_maintenance__actions
+    description: "Libellés des points de contrôle préventifs. Grain : un libellé."
+    columns:
+      - name: id_action
+        data_tests: [unique, not_null]
+
+  - name: stg_maintenance__points_controle
+    description: "Points de contrôle de chaque équipement. Grain : un point."
+    columns:
+      - name: id_point
+        data_tests: [unique, not_null]
+      - name: id_equipement
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_maintenance__equipements')
+                field: id_equipement
+
+  - name: stg_maintenance__rapports
+    description: "Modèles de tournée préventive : une zone × un poste. Grain : un modèle."
+    columns:
+      - name: id_rapport
+        data_tests: [unique, not_null]
+      - name: zone
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [préparation, moulage, séchoir, four, empileuse, dépileuse]
+
+  - name: stg_maintenance__tournees
+    description: "Tournées préventives saisies, doublons compris. Grain : une saisie."
+    columns:
+      - name: id_tournee
+        data_tests: [unique, not_null]
+
+  - name: stg_maintenance__resultats
+    description: "Résultat de chaque point de contrôle dans une tournée. Grain : un résultat."
+    columns:
+      - name: id_resultat
+        data_tests: [unique, not_null]
+      - name: statut
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [conforme, non conforme, non rempli]
+
+  - name: stg_maintenance__ordres_travail
+    description: "Ordres de travail ouverts sur un point non conforme. Grain : un ordre."
+    columns:
+      - name: id_ordre_travail
+        data_tests: [unique, not_null]
+
+  - name: stg_maintenance__interventions
+    description: "Fiches d'intervention sur panne. Grain : une fiche."
+    columns:
+      - name: id_intervention
+        data_tests: [unique, not_null]
+      - name: zone
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [préparation, moulage, séchoir, four, empileuse, dépileuse]
+
+  - name: stg_maintenance__lignes_intervention
+    description: "Lignes d'intervention, durée calculée sur les heures. Grain : une ligne."
+    columns:
+      - name: id_ligne
+        data_tests: [unique, not_null]
+      - name: id_intervention
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_maintenance__interventions')
+                field: id_intervention
+
+  - name: stg_maintenance__pieces_intervention
+    description: "Pièces de rechange lues dans la liste JSON des lignes d'intervention. Grain : une pièce."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [id_ligne, position]
+
+  - name: stg_maintenance__demandes
+    description: "Demandes d'intervention, sans les essais. Grain : une demande."
+    columns:
+      - name: id_demande
+        data_tests: [unique, not_null]
+      - name: urgence
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3]
+                quote: false
+
+unit_tests:
+  - name: maintenance_duree_sur_les_heures
+    description: >
+      23h40 → 0h00 dure 20 minutes (passage de minuit) ; 4h05 → 5h15 dure
+      70 minutes ; 11h45 → 0h10 ferait 12 h 25 : erreur de saisie, vide ;
+      une ligne sans heure de fin n'a pas de durée.
+    model: stg_maintenance__lignes_intervention
+    given:
+      - input: source('maintenance_interventions', 'lignes_intervention')
+        rows:
+          - {id: 1, intervention_id: 1, debut: "23:40:00", fin: "00:00:00", etat_machine: ARR, type_panne: "Méc", type_intervention: CURATIVE}
+          - {id: 2, intervention_id: 1, debut: "04:05:00", fin: "05:15:00", etat_machine: EM, type_panne: "Eléc", type_intervention: palliatif}
+          - {id: 3, intervention_id: 1, debut: "11:45:00", fin: "00:10:00", etat_machine: TM, type_panne: Chaud, type_intervention: curatif}
+          - {id: 4, intervention_id: 1, debut: "08:00:00", fin: null, etat_machine: null, type_panne: null, type_intervention: null}
+    expect:
+      rows:
+        - {id_ligne: 1, duree_minutes: 20, etat_machine: arrêt, type_panne: mécanique, type_intervention: curatif}
+        - {id_ligne: 2, duree_minutes: 70, etat_machine: en marche, type_panne: électrique, type_intervention: palliatif}
+        - {id_ligne: 3, duree_minutes: null, etat_machine: TM, type_panne: chaudronnerie, type_intervention: curatif}
+        - {id_ligne: 4, duree_minutes: null, etat_machine: null, type_panne: null, type_intervention: null}
+
+  - name: maintenance_pieces_lues_dans_le_json
+    description: >
+      [{"code":"a02930","qte":2},{"code":"RAS","qte":null}] donne une pièce
+      A02930 × 2 ; « RAS » et « ["RAS"] » ne sont pas des pièces.
+    model: stg_maintenance__pieces_intervention
+    given:
+      - input: source('maintenance_interventions', 'lignes_intervention')
+        rows:
+          - {id: 1, code_article_pdr: '[{"code":"a02930","qte":2},{"code":"RAS","qte":null}]'}
+          - {id: 2, code_article_pdr: '["RAS"]'}
+          - {id: 3, code_article_pdr: '[{"code":"3260","qte":1}]'}
+    expect:
+      rows:
+        - {id_ligne: 1, position: 1, code_article: A02930, quantite: 2}
+        - {id_ligne: 3, position: 1, code_article: "3260", quantite: 1}

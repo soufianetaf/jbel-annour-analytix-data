@@ -1,0 +1,147 @@
+version: 2
+
+models:
+  - name: fct_controles_preventifs
+    description: >
+      Points de contrôle des tournées préventives retenues (une par zone, poste
+      et jour). Grain : un point × une tournée. Définitions : docs/indicateurs/maintenance.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_resultat]
+    columns:
+      - {name: id_resultat, data_type: bigint}
+      - {name: id_tournee, data_type: bigint}
+      - {name: jour, data_type: date, data_tests: [not_null]}
+      - {name: zone, data_type: text, data_tests: [not_null]}
+      - {name: poste, data_type: text}
+      - {name: equipe, data_type: text}
+      - {name: id_equipement, data_type: bigint}
+      - {name: equipement, data_type: text}
+      - {name: code_sage, data_type: text}
+      - {name: code_machine, data_type: text}
+      - {name: point_controle, data_type: text}
+      - name: statut
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [conforme, non conforme, non rempli]
+      - {name: priorite, data_type: integer}
+      - {name: nature, data_type: text}
+      - {name: suite_donnee, data_type: text, description: "planifier ou corriger."}
+      - {name: numero_ot, data_type: text}
+
+  - name: fct_interventions_maintenance
+    description: "Interventions sur panne. Grain : une ligne d'intervention."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_ligne]
+    columns:
+      - {name: id_ligne, data_type: bigint}
+      - {name: id_intervention, data_type: bigint}
+      - {name: numero_fiche, data_type: text}
+      - {name: jour, data_type: date, data_tests: [not_null]}
+      - {name: zone, data_type: text}
+      - {name: service, data_type: text}
+      - {name: equipe, data_type: text}
+      - {name: poste, data_type: text}
+      - {name: equipement, data_type: text}
+      - name: etat_machine
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [arrêt, en marche, TM]
+      - name: type_panne
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mécanique, électrique, chaudronnerie, hydraulique, pneumatique, plomberie, jonction, automatisme]
+      - name: type_intervention
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [curatif, palliatif]
+      - {name: debut, data_type: time}
+      - {name: fin, data_type: time}
+      - {name: duree_minutes, data_type: integer, description: "Fin - début (+ 24 h après minuit) ; vide au-delà de 12 h."}
+      - {name: minutes_arret, data_type: integer, description: "Durée quand la machine était à l'arrêt."}
+      - {name: duree_saisie, data_type: text}
+      - {name: pieces, data_type: integer}
+      - {name: quantite_pieces, data_type: "numeric(12,2)"}
+      - {name: numero_ot, data_type: text}
+
+  - name: fct_pieces_maintenance
+    description: "Pièces de rechange utilisées sur les interventions. Grain : une pièce × une ligne d'intervention."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_ligne, position]
+    columns:
+      - {name: id_ligne, data_type: bigint}
+      - {name: position, data_type: integer}
+      - {name: jour, data_type: date}
+      - {name: zone, data_type: text}
+      - {name: equipement, data_type: text}
+      - name: cle_article
+        data_type: text
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_article')
+                field: cle_article
+      - {name: code_article, data_type: text}
+      - {name: article_x3, data_type: boolean, description: "Le code existe dans Sage X3."}
+      - {name: quantite, data_type: "numeric(12,2)"}
+
+  - name: fct_demandes_intervention
+    description: "Demandes d'intervention, de la panne à la remise en service. Grain : une demande."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_demande]
+    columns:
+      - {name: id_demande, data_type: bigint}
+      - {name: jour, data_type: date}
+      - {name: service, data_type: text}
+      - {name: machine, data_type: text}
+      - {name: code_machine, data_type: text}
+      - {name: etat_machine, data_type: text}
+      - {name: urgence, data_type: integer, description: "1 (+) à 3 (+++)."}
+      - {name: type_intervention, data_type: text}
+      - {name: statut, data_type: integer}
+      - {name: action_efficace, data_type: boolean}
+      - {name: panne_le, data_type: timestamp}
+      - {name: debut_le, data_type: timestamp}
+      - {name: remise_service_le, data_type: timestamp}
+      - {name: heures_avant_intervention, data_type: "numeric(10,2)"}
+      - {name: heures_remise_service, data_type: "numeric(10,2)", description: "Vide tant que la demande n'est pas close."}
+
+  - name: agg_maintenance_zone_jour
+    description: "Maintenance par zone et par jour : préventif et interventions. Grain : une zone × un jour."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [zone, jour]
+    columns:
+      - {name: zone, data_type: text}
+      - {name: jour, data_type: date}
+      - {name: tournees_faites, data_type: integer, description: "Postes (sur 3) dont la tournée a des résultats."}
+      - {name: points_controle, data_type: integer}
+      - {name: points_non_conformes, data_type: integer}
+      - {name: taux_realisation, data_type: "numeric(6,4)", description: "Points remplis / points de la tournée."}
+      - {name: taux_conformite, data_type: "numeric(6,4)", description: "Points conformes / points remplis."}
+      - {name: interventions, data_type: integer}
+      - {name: interventions_machine_arretee, data_type: integer}
+      - {name: minutes_intervention, data_type: integer}
+      - {name: minutes_arret, data_type: integer}

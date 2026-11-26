@@ -1,0 +1,46 @@
+version: 2
+
+sources:
+  - name: maintenance
+    description: >
+      Maintenance préventive : base maintenance_2026, schéma « maintenance ».
+      Copiée par ingestion.usine_maintenance, sans nom ni commentaire.
+    schema: raw_maintenance
+    loaded_at_field: _charge_le
+    tables:
+      - name: equipements
+        description: "Équipements de l'usine, avec leur code dans Sage X3."
+      - name: actions
+        description: "Points de contrôle (« Contrôler l'état des rouleaux »…)."
+      - name: equipement_actions
+        description: "Points de contrôle de chaque équipement."
+      - name: rapports
+        description: "Modèles de tournée : une zone × un poste."
+      - name: rapports_quotidiens
+        description: "Tournées de contrôle saisies (souvent plusieurs fois)."
+      - name: resultats_controle
+        description: "Résultat de chaque point : C, NC ou vide."
+      - name: ordre_travail
+        description: "Ordres de travail ouverts sur un point non conforme."
+
+  - name: maintenance_interventions
+    description: >
+      Interventions sur panne : base maintenance_2026, schéma « dbo ».
+      Sans nom d'intervenant ni texte libre (anomalie, cause, action).
+    schema: raw_maintenance_interventions
+    loaded_at_field: _charge_le
+    tables:
+      - name: interventions
+        description: "Fiches d'intervention : date, zone, équipe, poste."
+      - name: lignes_intervention
+        description: "Lignes d'intervention : équipement, état de la machine, heures, pièces."
+
+  - name: maintenance_demandes
+    description: >
+      Demandes d'intervention : ancienne base maintenance, schéma « dbo »
+      (seul endroit où elles sont saisies). Sans demandeur ni texte libre.
+    schema: raw_maintenance_demandes
+    loaded_at_field: _charge_le
+    tables:
+      - name: demandes_intervention
+        description: "Demandes d'intervention, de la panne à la remise en service."

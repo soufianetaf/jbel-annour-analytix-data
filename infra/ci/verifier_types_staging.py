@@ -66,6 +66,7 @@ def colonnes_absentes_de_raw(colonnes_raw: dict[tuple[str, str], set[str]]) -> l
         usine_electricite,
         usine_machines,
         usine_magasin,
+        usine_maintenance,
         usine_production,
         usine_qualite,
         x3_achats,
@@ -82,6 +83,7 @@ def colonnes_absentes_de_raw(colonnes_raw: dict[tuple[str, str], set[str]]) -> l
     groupes += [(tables, cible) for _, tables, cible in usine_machines.COPIES]
     groupes += [(usine_electricite.TABLES, usine_electricite.ELECTRICITE)]
     groupes += [(usine_qualite.TABLES, usine_qualite.QUALITE)]
+    groupes += [(tables, cible) for _, tables, cible in usine_maintenance.COPIES]
     absentes = []
     for tables, cible in groupes:
         for table in tables:
