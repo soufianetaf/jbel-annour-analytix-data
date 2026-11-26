@@ -1,0 +1,103 @@
+version: 2
+
+models:
+  - name: stg_qualite__entetes
+    description: "En-têtes de contrôle qualité (date, poste), sans nom du freineur. Grain : un en-tête."
+    columns:
+      - name: id_entete
+        data_tests: [unique, not_null]
+
+  - name: stg_qualite__rapports
+    description: "Rapports de contrôle qualité. Grain : un rapport."
+    columns:
+      - name: id_rapport
+        data_tests: [unique, not_null]
+      - name: poste
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["07h00 - 15h00", "15h00 - 23h00", "23h00 - 07h00"]
+
+  - name: stg_qualite__chariots
+    description: "Chariots contrôlés en sortie du four. Grain : un chariot."
+    columns:
+      - name: id_chariot
+        data_tests: [unique, not_null]
+      - name: id_rapport
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_qualite__rapports')
+                field: id_rapport
+
+  - name: stg_qualite__controles
+    description: "Défauts contrôlés par chariot, libellés traduits en français. Grain : un défaut × un chariot."
+    columns:
+      - name: id_controle
+        data_tests: [unique, not_null]
+      - name: id_chariot
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_qualite__chariots')
+                field: id_chariot
+      - name: defaut
+        description: "Libellé français ; vide si le code est inconnu."
+        data_tests: [not_null]
+      - name: statut
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [conforme, défaut mineur, défaut majeur, non contrôlé, non renseigné]
+
+  - name: stg_qualite__prelevements
+    description: "Prélèvements de briques pour mesure. Grain : un prélèvement."
+    columns:
+      - name: id_prelevement
+        data_tests: [unique, not_null]
+      - name: zone
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mouleuse, séchoir, four]
+
+  - name: stg_qualite__mesures
+    description: "Briques mesurées : poids (kg), dimensions. Grain : une brique."
+    columns:
+      - name: id_mesure
+        data_tests: [unique, not_null]
+
+  - name: stg_production__controles_poids
+    description: "Contrôles de poids des briques non supprimés (application de production). Grain : un contrôle."
+    columns:
+      - name: id_controle_poids
+        data_tests: [unique, not_null]
+
+  - name: stg_production__pesees_briques
+    description: "Briques pesées, une ligne par brique (poids1 à poids8 remis en lignes). Grain : une pesée."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [id_pesees, numero_brique]
+    columns:
+      - name: zone
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mouleuse, séchoir, four]
+
+unit_tests:
+  - name: pesees_texte_en_kg_une_ligne_par_brique
+    description: >
+      Une ligne de 8 cases devient une ligne par brique pesée : « 3,382 » vaut
+      3,382 kg ; une case vide, « 0 » ou « néant » n'est pas une pesée ;
+      Monobloc est la sortie de la mouleuse.
+    model: stg_production__pesees_briques
+    given:
+      - input: source('production', 'poidsbriques_infos')
+        rows:
+          - {id: 1, poidsbrique_id: 10, zone: Monobloc, type: b8-25, poids1: "3,382", poids2: " 3.40 ", poids3: "0", poids4: "", poids5: "néant", poids6: null, poids7: null, poids8: null}
+    expect:
+      rows:
+        - {id_pesees: 1, id_controle_poids: 10, zone: mouleuse, type_brique: B8-25, numero_brique: 1, poids_kg: 3.382}
+        - {id_pesees: 1, id_controle_poids: 10, zone: mouleuse, type_brique: B8-25, numero_brique: 2, poids_kg: 3.400}

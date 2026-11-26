@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: int_qualite__rapports_dates
+    description: >
+      Rapports de contrôle qualité avec leur date et leur poste : l'en-tête,
+      sinon le rapport, sinon la date de création.
+    columns:
+      - name: id_rapport
+        data_tests: [unique, not_null]
+      - name: jour
+        data_tests: [not_null]

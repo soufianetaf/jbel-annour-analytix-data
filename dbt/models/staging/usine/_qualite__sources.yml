@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: qualite
+    description: >
+      Base qualite du serveur de l'usine (schéma « qualite »), application des
+      contrôles qualité. Copiée par ingestion.usine_qualite, sans nom de
+      contrôleur, sans texte libre ni photo.
+    schema: raw_qualite
+    loaded_at_field: _charge_le
+    tables:
+      - name: rapport_infos
+        description: "En-têtes de contrôle : date et poste."
+      - name: rapports
+        description: "Rapports de contrôle."
+      - name: rapport_composantes
+        description: "Chariots contrôlés en sortie du four."
+      - name: controles
+        description: "Défauts contrôlés par chariot (liste fixe de 11 défauts)."
+      - name: infos
+        description: "Prélèvements de mesure : zone, type de brique, moule."
+      - name: groups
+        description: "Mesures des briques prélevées : poids et dimensions."

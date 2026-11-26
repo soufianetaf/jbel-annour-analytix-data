@@ -1,6 +1,6 @@
 {#
   Grain : une ligne = un rapport de consommations saisi dans l'application
-  de production (base production_2026), jusqu'à fin avril 2026.
+  de production (base production_2026), de mars 2025 à octobre 2026.
   Source : raw_production.consomations.
 
   Les quantités sont saisies en TEXTE dans l'application : elles sont

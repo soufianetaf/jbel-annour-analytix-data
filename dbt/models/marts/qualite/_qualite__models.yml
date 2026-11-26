@@ -1,0 +1,180 @@
+version: 2
+
+models:
+  - name: fct_controles_qualite
+    description: >
+      Défauts contrôlés sur les chariots en sortie du four. Grain : un défaut ×
+      un chariot. Définitions : docs/indicateurs/qualite.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_controle]
+    columns:
+      - {name: id_controle, data_type: bigint}
+      - {name: id_chariot, data_type: bigint, data_tests: [not_null]}
+      - {name: id_rapport, data_type: bigint}
+      - {name: jour, data_type: date, data_tests: [not_null]}
+      - {name: poste, data_type: text}
+      - {name: type_brique, data_type: text}
+      - {name: numero_chariot, data_type: text}
+      - {name: code_defaut, data_type: text}
+      - {name: defaut, data_type: text, description: "Libellé français (source en arabe)."}
+      - name: famille_defaut
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [cuisson, matière, forme, fissures, manutention, autre contrôle]
+      - name: statut
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [conforme, défaut mineur, défaut majeur, non contrôlé, non renseigné]
+      - {name: quantite_non_acceptable, data_type: integer, description: "Saisie telle quelle ; parfois aberrante, ne pas additionner sans contrôle."}
+      - {name: quantite_endommagee, data_type: integer}
+      - {name: defaut_acceptable, data_type: boolean}
+      - {name: separable, data_type: boolean, description: "Les briques défectueuses peuvent être triées."}
+
+  - name: fct_chariots_qualite
+    description: "Chariots contrôlés en sortie du four, statut = défaut le plus grave. Grain : un chariot."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_chariot]
+    columns:
+      - {name: id_chariot, data_type: bigint}
+      - {name: id_rapport, data_type: bigint}
+      - {name: jour, data_type: date, data_tests: [not_null]}
+      - {name: poste, data_type: text}
+      - {name: type_brique, data_type: text}
+      - {name: numero_chariot, data_type: text}
+      - {name: heure_sortie_four, data_type: time}
+      - {name: heure_controle, data_type: time}
+      - name: statut_chariot
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [conforme, défaut mineur, défaut majeur, non contrôlé]
+      - {name: defauts_listes, data_type: integer}
+      - {name: defauts_controles, data_type: integer}
+      - {name: defauts_mineurs, data_type: integer}
+      - {name: defauts_majeurs, data_type: integer}
+      - {name: liste_defauts_majeurs, data_type: text}
+
+  - name: fct_pesees_briques
+    description: >
+      Poids des briques par contrôle, zone et type (application de production).
+      Grain : un contrôle × une zone × un type de brique.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_controle_poids, zone, type_brique]
+    columns:
+      - {name: id_controle_poids, data_type: bigint}
+      - {name: jour, data_type: date, data_tests: [not_null]}
+      - {name: poste, data_type: text}
+      - name: zone
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mouleuse, séchoir, four]
+      - {name: type_brique, data_type: text}
+      - {name: briques_pesees, data_type: integer}
+      - {name: pesees_aberrantes, data_type: integer, description: "À plus de 40 % du poids médian de la zone et du type : exclues des moyennes."}
+      - {name: poids_moyen_kg, data_type: "numeric(12,3)"}
+      - {name: poids_min_kg, data_type: "numeric(12,3)"}
+      - {name: poids_max_kg, data_type: "numeric(12,3)"}
+      - {name: ecart_type_kg, data_type: "numeric(12,4)"}
+
+  - name: agg_pertes_poids_jour
+    description: >
+      Perte de poids au séchage et à la cuisson, par jour et type de brique
+      (moyennes du jour aux trois étapes). Grain : un jour × un type.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [jour, type_brique]
+    columns:
+      - {name: jour, data_type: date}
+      - {name: type_brique, data_type: text}
+      - {name: poids_mouleuse_kg, data_type: "numeric(12,3)"}
+      - {name: poids_sechoir_kg, data_type: "numeric(12,3)"}
+      - {name: poids_four_kg, data_type: "numeric(12,3)"}
+      - {name: perte_sechage, data_type: "numeric(8,4)", description: "1 - séchoir / mouleuse."}
+      - {name: perte_cuisson, data_type: "numeric(8,4)", description: "1 - four / séchoir."}
+      - {name: briques_pesees, data_type: integer}
+
+  - name: fct_mesures_briques
+    description: "Briques mesurées par le service qualité (poids, dimensions). Grain : une brique."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [id_mesure]
+    columns:
+      - {name: id_mesure, data_type: bigint}
+      - {name: id_prelevement, data_type: bigint}
+      - {name: jour, data_type: date}
+      - {name: poste, data_type: text}
+      - {name: zone, data_type: text}
+      - {name: type_brique, data_type: text}
+      - {name: reference_moule, data_type: text}
+      - {name: poids_kg, data_type: "numeric(12,3)"}
+      - {name: hauteur_cm, data_type: "numeric(12,2)"}
+      - {name: largeur_cm, data_type: "numeric(12,2)"}
+      - {name: longueur_cm, data_type: "numeric(12,2)"}
+
+unit_tests:
+  - name: chariot_prend_le_defaut_le_plus_grave
+    description: >
+      Un chariot avec un défaut mineur et un défaut majeur est « défaut
+      majeur » ; un chariot tout en bleu est « non contrôlé » ; un chariot
+      tout en vert est « conforme ».
+    model: fct_chariots_qualite
+    given:
+      - input: ref('stg_qualite__chariots')
+        rows:
+          - {id_chariot: 1, id_rapport: 100}
+          - {id_chariot: 2, id_rapport: 100}
+          - {id_chariot: 3, id_rapport: 100}
+      - input: ref('int_qualite__rapports_dates')
+        rows:
+          - {id_rapport: 100, jour: "2025-07-16", poste: "07h00 - 15h00"}
+      - input: ref('fct_controles_qualite')
+        rows:
+          - {id_chariot: 1, defaut: Sous-cuit, statut: défaut mineur}
+          - {id_chariot: 1, defaut: Fissures transversales, statut: défaut majeur}
+          - {id_chariot: 1, defaut: Retrait, statut: conforme}
+          - {id_chariot: 2, defaut: Sous-cuit, statut: non contrôlé}
+          - {id_chariot: 3, defaut: Sous-cuit, statut: conforme}
+    expect:
+      rows:
+        - {id_chariot: 1, statut_chariot: défaut majeur, defauts_controles: 3, defauts_majeurs: 1, liste_defauts_majeurs: Fissures transversales}
+        - {id_chariot: 2, statut_chariot: non contrôlé, defauts_controles: 0, defauts_majeurs: 0, liste_defauts_majeurs: null}
+        - {id_chariot: 3, statut_chariot: conforme, defauts_controles: 1, defauts_majeurs: 0, liste_defauts_majeurs: null}
+
+  - name: pesee_aberrante_exclue_de_la_moyenne
+    description: >
+      Trois briques à 3,4 kg et une saisie « 3382 » (grammes ou virgule
+      oubliée) : la saisie est comptée comme aberrante, la moyenne reste 3,4 kg.
+    model: fct_pesees_briques
+    given:
+      - input: ref('stg_production__pesees_briques')
+        rows:
+          - {id_pesees: 1, id_controle_poids: 10, zone: mouleuse, type_brique: B8-25, numero_brique: 1, poids_kg: 3.4}
+          - {id_pesees: 1, id_controle_poids: 10, zone: mouleuse, type_brique: B8-25, numero_brique: 2, poids_kg: 3.4}
+          - {id_pesees: 1, id_controle_poids: 10, zone: mouleuse, type_brique: B8-25, numero_brique: 3, poids_kg: 3.4}
+          - {id_pesees: 1, id_controle_poids: 10, zone: mouleuse, type_brique: B8-25, numero_brique: 4, poids_kg: 3382}
+      - input: ref('stg_production__controles_poids')
+        rows:
+          - {id_controle_poids: 10, jour: "2026-01-15", poste: "07h00 - 15h00"}
+    expect:
+      rows:
+        - {id_controle_poids: 10, zone: mouleuse, briques_pesees: 4, pesees_aberrantes: 1, poids_moyen_kg: 3.400}
