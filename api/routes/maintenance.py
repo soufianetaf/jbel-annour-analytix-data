@@ -93,3 +93,30 @@ def interventions(
         """,
         {"debut": p.debut, "fin": p.fin, "zone": zone, "limite": limite},
     )
+
+
+class FiabiliteMois(BaseModel):
+    zone: str
+    mois: date
+    pannes: int
+    minutes_arret: int
+    heures_marche: float | None
+    mttr_minutes: float | None
+    mtbf_heures: float | None
+
+
+@routeur.get(
+    "/fiabilite",
+    response_model=list[FiabiliteMois],
+    summary="Pannes, MTTR et MTBF par zone et par mois",
+)
+def fiabilite(_: Lecteur, entrepot: Base, p: Annotated[Periode, Depends(periode)]):
+    return entrepot.lire(
+        """
+        SELECT zone, mois, pannes, minutes_arret, heures_marche, mttr_minutes, mtbf_heures
+        FROM marts.agg_fiabilite_zone_mois
+        WHERE mois BETWEEN date_trunc('month', %(debut)s::date) AND %(fin)s
+        ORDER BY mois, zone
+        """,
+        {"debut": p.debut, "fin": p.fin},
+    )

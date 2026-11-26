@@ -46,9 +46,9 @@ La **seule** table des droits est `api/roles.py`. Chaque route déclare son doma
 |---|---|---|
 | ventes | direction, commercial, finance, représentant (**ses ventes seulement**) | `/v1/ventes/ca-mensuel`, `/v1/ventes/clients` |
 | finance | direction, finance | `/v1/finance/compte-de-resultat`, `/v1/finance/creances`, `/v1/finance/tresorerie` |
-| achats | direction, achats, finance | `/v1/achats/mois`, `/v1/achats/fournisseurs`, `/v1/stock/sites`, `/v1/stock/articles` |
-| production | direction, production, maintenance | `/v1/production/postes`, `/v1/machines/jour`, `/v1/energie/jour`, `/v1/energie/prix`, `/v1/qualite/chariots`, `/v1/qualite/pertes-poids` |
-| maintenance | direction, maintenance, production | `/v1/maintenance/zones`, `/v1/maintenance/interventions` |
+| achats | direction, achats, finance | `/v1/achats/mois`, `/v1/achats/fournisseurs`, `/v1/stock/sites`, `/v1/stock/articles`, `/v1/stock/equilibre-briques` |
+| production | direction, production, maintenance | `/v1/production/postes`, `/v1/machines/jour`, `/v1/machines/performance`, `/v1/energie/jour`, `/v1/energie/prix`, `/v1/qualite/chariots`, `/v1/qualite/pertes-poids` |
+| maintenance | direction, maintenance, production | `/v1/maintenance/zones`, `/v1/maintenance/interventions`, `/v1/maintenance/fiabilite` |
 | cout_revient | direction, finance | `/v1/cout-revient/mois`, `/v1/cout-revient/marges` |
 | direction | direction, finance | `/v1/direction/mois` |
 | rh | direction, rh | `/v1/rh/effectifs`, `/v1/rh/presence` |

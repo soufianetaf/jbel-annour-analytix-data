@@ -77,6 +77,35 @@ models:
       - {name: cycle_minutes, data_type: "numeric(10,2)", description: "Sortie - entrée ; vide si négatif ou plus de 24 h."}
       - {name: charge_le, data_type: timestamp with time zone}
 
+  - name: agg_performance_machine_jour
+    description: >
+      TRS hors qualité, cadence et production perdue par les pannes, par machine
+      et par jour (moulage, empileuse, dépileuse). Définitions : docs/indicateurs/fiabilite.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [machine, jour]
+    columns:
+      - name: machine
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [moulage, empileuse, depileuse]
+      - {name: jour, data_type: date}
+      - {name: production, data_type: "numeric(18,3)"}
+      - {name: unite_production, data_type: text}
+      - {name: heures_marche, data_type: "numeric(8,3)"}
+      - {name: heures_arret, data_type: "numeric(8,3)"}
+      - {name: cadence_par_heure, data_type: "numeric(12,3)"}
+      - {name: cadence_reference, data_type: "numeric(12,3)", description: "Meilleure cadence démontrée : 95e centile des cadences du jour."}
+      - {name: disponibilite, data_type: "numeric(6,4)"}
+      - {name: performance, data_type: "numeric(6,4)", description: "Cadence du jour / cadence de référence, au plus 1."}
+      - {name: trs_hors_qualite, data_type: "numeric(6,4)", description: "Disponibilité × performance (qualité non mesurée par machine)."}
+      - {name: pannes, data_type: integer}
+      - {name: minutes_arret_maintenance, data_type: integer}
+      - {name: production_perdue_estimee, data_type: "numeric(18,3)", description: "Minutes d'arrêt / 60 × cadence de référence."}
 unit_tests:
   - name: machines_total_du_jour_est_le_dernier_releve
     description: >
@@ -115,3 +144,26 @@ unit_tests:
       rows:
         - {machine: moulage, production: 174, heures_marche: 14.0717, heures_arret: 2.0314}
         - {machine: empileuse, production: 44.667, heures_marche: 19.4244, heures_arret: null}
+
+  - name: trs_disponibilite_fois_performance
+    description: >
+      Deux jours de moulage : 10 étagères/h puis 20 étagères/h. La cadence de
+      référence (95e centile) vaut 19,5/h. Le jour à 10/h, disponible à 80 % :
+      performance 10 / 19,5 = 0,5128, TRS 0,4103 ; 30 minutes d'arrêt ont
+      coûté 9,75 étagères. Le jour à 20/h : performance plafonnée à 1. Un jour
+      sans aucune heure enregistrée : performance et TRS vides, pas 1 ni 0.
+    model: agg_performance_machine_jour
+    given:
+      - input: ref('fct_machines_jour')
+        rows:
+          - {machine: moulage, jour: "2026-10-05", production: 160, unite_production: étagère, heures_marche: 16, heures_arret: 4, disponibilite: 0.8}
+          - {machine: moulage, jour: "2026-10-06", production: 400, unite_production: étagère, heures_marche: 20, heures_arret: 0, disponibilite: 1}
+          - {machine: moulage, jour: "2026-10-07", production: 0, unite_production: étagère, heures_marche: 0, heures_arret: 0, disponibilite: 0}
+      - input: ref('fct_interventions_maintenance')
+        rows:
+          - {zone: moulage, jour: "2026-10-05", etat_machine: arrêt, minutes_arret: 30}
+    expect:
+      rows:
+        - {machine: moulage, jour: "2026-10-05", cadence_reference: 19.500, performance: 0.5128, trs_hors_qualite: 0.4103, pannes: 1, production_perdue_estimee: 9.750}
+        - {machine: moulage, jour: "2026-10-06", cadence_reference: 19.500, performance: 1.0000, trs_hors_qualite: 1.0000, pannes: 0, production_perdue_estimee: 0.000}
+        - {machine: moulage, jour: "2026-10-07", cadence_reference: 19.500, performance: null, trs_hors_qualite: null, pannes: 0, production_perdue_estimee: 0.000}

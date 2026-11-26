@@ -185,3 +185,36 @@ def pertes_poids(_: Lecteur, entrepot: Base, p: Dates):
         """,
         {"debut": p.debut, "fin": p.fin},
     )
+
+
+class PerformanceMachine(BaseModel):
+    machine: str
+    jour: date
+    disponibilite: float | None
+    performance: float | None
+    trs_hors_qualite: float | None
+    cadence_par_heure: float | None
+    cadence_reference: float | None
+    pannes: int
+    minutes_arret_maintenance: int
+    production_perdue_estimee: float | None
+    unite_production: str | None
+
+
+@routeur.get(
+    "/machines/performance",
+    response_model=list[PerformanceMachine],
+    summary="TRS (hors qualité) et production perdue par les pannes, par machine et par jour",
+)
+def performance_machines(_: Lecteur, entrepot: Base, p: Dates):
+    return entrepot.lire(
+        """
+        SELECT machine, jour, disponibilite, performance, trs_hors_qualite, cadence_par_heure,
+               cadence_reference, pannes, minutes_arret_maintenance, production_perdue_estimee,
+               unite_production
+        FROM marts.agg_performance_machine_jour
+        WHERE jour BETWEEN %(debut)s AND %(fin)s
+        ORDER BY jour, machine
+        """,
+        {"debut": p.debut, "fin": p.fin},
+    )

@@ -145,3 +145,48 @@ models:
       - {name: interventions_machine_arretee, data_type: integer}
       - {name: minutes_intervention, data_type: integer}
       - {name: minutes_arret, data_type: integer}
+
+  - name: agg_fiabilite_zone_mois
+    description: >
+      Pannes, MTTR et MTBF par zone et par mois. Grain : une zone × un mois.
+      Définitions : docs/indicateurs/fiabilite.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [zone, mois]
+    columns:
+      - {name: zone, data_type: text}
+      - {name: mois, data_type: date}
+      - {name: interventions, data_type: integer}
+      - {name: interventions_curatives, data_type: integer}
+      - {name: interventions_palliatives, data_type: integer}
+      - {name: pannes, data_type: integer, description: "Lignes d'intervention machine à l'arrêt."}
+      - {name: minutes_arret, data_type: integer}
+      - {name: heures_marche, data_type: "numeric(12,2)", description: "Automate de la machine ; vide sans compteur d'heures."}
+      - {name: mttr_minutes, data_type: "numeric(10,1)", description: "Temps moyen de réparation : minutes d'arrêt / pannes."}
+      - {name: mtbf_heures, data_type: "numeric(10,1)", description: "Temps moyen entre deux pannes : heures de marche / pannes."}
+
+unit_tests:
+  - name: fiabilite_mttr_et_mtbf
+    description: >
+      Au moulage en octobre : 2 pannes (machine à l'arrêt) de 30 et 90 minutes
+      et une intervention machine en marche ; 300 heures de marche dans le
+      mois. MTTR = 120 / 2 = 60 min ; MTBF = 300 / 2 = 150 h. La préparation,
+      sans automate, n'a pas de MTBF.
+    model: agg_fiabilite_zone_mois
+    given:
+      - input: ref('fct_interventions_maintenance')
+        rows:
+          - {zone: moulage, jour: "2026-10-05", etat_machine: arrêt, type_intervention: curatif, minutes_arret: 30}
+          - {zone: moulage, jour: "2026-10-12", etat_machine: arrêt, type_intervention: curatif, minutes_arret: 90}
+          - {zone: moulage, jour: "2026-10-12", etat_machine: en marche, type_intervention: palliatif, minutes_arret: null}
+          - {zone: préparation, jour: "2026-10-12", etat_machine: arrêt, type_intervention: curatif, minutes_arret: 45}
+      - input: ref('fct_machines_jour')
+        rows:
+          - {machine: moulage, jour: "2026-10-05", heures_marche: 150}
+          - {machine: moulage, jour: "2026-10-12", heures_marche: 150}
+    expect:
+      rows:
+        - {zone: moulage, mois: "2026-10-01", pannes: 2, minutes_arret: 120, mttr_minutes: 60.0, mtbf_heures: 150.0}
+        - {zone: préparation, mois: "2026-10-01", pannes: 1, minutes_arret: 45, mttr_minutes: 45.0, mtbf_heures: null}

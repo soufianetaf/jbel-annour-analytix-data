@@ -129,3 +129,29 @@ def stock_articles(
         """,
         {"site": site, "limite": limite},
     )
+
+
+class EquilibreMois(BaseModel):
+    mois: date
+    tonnes_cuites: float | None
+    production_declaree: float | None
+    livraisons: float | None
+    tonnes_vendues: float | None
+    stock_fin_mois: float | None
+
+
+@routeur.get(
+    "/stock/equilibre-briques",
+    response_model=list[EquilibreMois],
+    summary="Briques produites, stockées et vendues, en tonnes, par mois",
+)
+def equilibre_briques(_: Lecteur, entrepot: Base, p: Annotated[Periode, Depends(periode)]):
+    return entrepot.lire(
+        """
+        SELECT mois, tonnes_cuites, production_declaree, livraisons, tonnes_vendues, stock_fin_mois
+        FROM marts.agg_equilibre_briques_mois
+        WHERE mois BETWEEN date_trunc('month', %(debut)s::date) AND %(fin)s
+        ORDER BY mois
+        """,
+        {"debut": p.debut, "fin": p.fin},
+    )

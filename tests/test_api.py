@@ -203,8 +203,8 @@ def test_les_routes_testees_sont_celles_publiees(client):
     }
     testees = {f"/{VERSION}{route.path}" for route in _routes_get()}
     assert testees == publiees
-    # 23 routes de données au 26/11/2026 : à relever quand on en ajoute
-    assert len(_routes_protegees(client)) >= 23
+    # 26 routes de données au 26/11/2026 : à relever quand on en ajoute
+    assert len(_routes_protegees(client)) >= 26
 
 
 def test_toutes_les_routes_de_donnees_exigent_une_connexion(client):

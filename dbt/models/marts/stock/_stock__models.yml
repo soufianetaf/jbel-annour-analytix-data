@@ -79,3 +79,23 @@ models:
       - {name: valeur, data_type: "numeric(28,10)", data_tests: [not_null]}
       - {name: date_comptable, data_type: date}
       - {name: charge_le, data_type: timestamp with time zone}
+
+  - name: agg_equilibre_briques_mois
+    description: >
+      Briques produites, stockées et vendues, en tonnes, par mois : tonnes cuites,
+      production déclarée et livraisons dans Sage X3, ventes facturées, stock de
+      fin de mois reconstitué. Grain : un mois. Définitions : docs/indicateurs/equilibre_briques.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [mois]
+    columns:
+      - {name: mois, data_type: date}
+      - {name: tonnes_cuites, data_type: "numeric(18,3)", description: "Automate du four."}
+      - {name: production_declaree, data_type: "numeric(18,3)", description: "Entrées de production dans Sage X3 (mouvements de type 5)."}
+      - {name: livraisons, data_type: "numeric(18,3)", description: "Sorties de livraison dans Sage X3 (type 4)."}
+      - {name: tonnes_vendues, data_type: "numeric(18,3)", description: "Factures et avoirs des articles briques."}
+      - {name: variation_stock, data_type: "numeric(18,3)"}
+      - {name: stock_fin_mois, data_type: "numeric(18,3)", description: "Stock d'aujourd'hui moins les mouvements postérieurs au mois."}
+      - {name: ratio_declaree_cuite, data_type: "numeric(8,4)", description: "Production déclarée dans X3 / tonnes cuites (1 = identiques)."}
