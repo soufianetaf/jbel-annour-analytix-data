@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.base import Entrepot, EntrepotPostgres
 from api.config import ParametresApi
 from api.journal import JournalAcces
+from api.limites import LimiteurTentatives
 from api.routes import (
     achats,
     auth,
@@ -24,6 +25,7 @@ from api.routes import (
     sante,
     ventes,
 )
+from api.securite_http import EnTetesSecurite
 
 VERSION = "v1"
 # Tous les routeurs de l'API, dans l'ordre. Les tests parcourent CETTE liste
@@ -59,6 +61,8 @@ def creer_app(parametres: ParametresApi | None = None, entrepot: Entrepot | None
             app.state.entrepot = entrepot
             yield
 
+    # En production, la documentation interactive est fermée (API_DOCS=true la rouvre)
+    docs = parametres.documentation_ouverte
     app = FastAPI(
         title="Jbel Annour Analytix",
         version="0.1.0",
@@ -67,11 +71,20 @@ def creer_app(parametres: ParametresApi | None = None, entrepot: Entrepot | None
             "à des rôles (api/roles.py) ; chaque accès est journalisé."
         ),
         lifespan=cycle_de_vie,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
     )
     app.state.parametres = parametres
+    app.state.limiteur = LimiteurTentatives(
+        par_compte=parametres.api_tentatives_par_compte,
+        par_adresse=parametres.api_tentatives_par_adresse,
+        fenetre_secondes=parametres.api_fenetre_tentatives_minutes * 60,
+    )
     if entrepot is not None:
         app.state.entrepot = entrepot
 
+    app.add_middleware(EnTetesSecurite)
     app.add_middleware(JournalAcces)
     app.add_middleware(
         CORSMiddleware,

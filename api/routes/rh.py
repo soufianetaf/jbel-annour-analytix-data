@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from api.base import Entrepot
 from api.routes.commun import Periode, periode
-from api.securite import Utilisateur, entrepot_api, exiger_domaine
+from api.securite import Utilisateur, entrepot_lecteur, exiger_domaine
 
 routeur = APIRouter(prefix="/rh", tags=["rh"])
 Lecteur = Annotated[Utilisateur, Depends(exiger_domaine("rh"))]
@@ -32,7 +32,7 @@ class PresenceJour(BaseModel):
 
 
 @routeur.get("/effectifs", response_model=list[EffectifService], summary="Effectif par service")
-def effectifs(_: Lecteur, entrepot: Annotated[Entrepot, Depends(entrepot_api)]) -> list[dict]:
+def effectifs(_: Lecteur, entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)]) -> list[dict]:
     return entrepot.lire(
         """
         SELECT service, effectif_rh, embauches_12_mois, effectif_pointeuse
@@ -47,7 +47,7 @@ def effectifs(_: Lecteur, entrepot: Annotated[Entrepot, Depends(entrepot_api)]) 
 )
 def presence(
     _: Lecteur,
-    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)],
     p: Annotated[Periode, Depends(periode)],
 ) -> list[dict]:
     return entrepot.lire(

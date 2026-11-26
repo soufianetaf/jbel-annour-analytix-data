@@ -38,6 +38,16 @@ class ParametresApi(BaseSettings):
     # Adresse(s) de l'interface web autorisée(s) à appeler l'API, séparées par des virgules
     api_cors_origins: str = "http://localhost:5173"
 
+    # dev ou prod (même variable que dbt) : en prod, la documentation
+    # interactive (/docs, /openapi.json) est fermée, sauf API_DOCS=true
+    analytix_env: str = "dev"
+    api_docs: bool | None = None
+
+    # Tentatives de connexion échouées avant blocage temporaire (réponse 429)
+    api_tentatives_par_compte: int = 5
+    api_tentatives_par_adresse: int = 20
+    api_fenetre_tentatives_minutes: int = 15
+
     @field_validator("api_secret_key")
     @classmethod
     def _cle_assez_longue(cls, valeur: SecretStr) -> SecretStr:
@@ -48,6 +58,12 @@ class ParametresApi(BaseSettings):
                 '"import secrets; print(secrets.token_urlsafe(48))")'
             )
         return valeur
+
+    @property
+    def documentation_ouverte(self) -> bool:
+        if self.api_docs is not None:
+            return self.api_docs
+        return self.analytix_env != "prod"
 
     @property
     def origines_cors(self) -> list[str]:

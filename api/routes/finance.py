@@ -14,11 +14,11 @@ from pydantic import BaseModel
 
 from api.base import Entrepot
 from api.routes.commun import Periode, periode
-from api.securite import Utilisateur, entrepot_api, exiger_domaine
+from api.securite import Utilisateur, entrepot_lecteur, exiger_domaine
 
 routeur = APIRouter(prefix="/finance", tags=["finance"])
 Lecteur = Annotated[Utilisateur, Depends(exiger_domaine("finance"))]
-Base = Annotated[Entrepot, Depends(entrepot_api)]
+Base = Annotated[Entrepot, Depends(entrepot_lecteur)]
 
 
 class LigneCpc(BaseModel):

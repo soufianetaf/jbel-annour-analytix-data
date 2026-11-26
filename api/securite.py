@@ -28,6 +28,12 @@ from api.config import ParametresApi
 from api.roles import peut_lire
 
 ALGORITHME = "HS256"
+# Émetteur et destinataire du jeton, vérifiés à chaque requête : un jeton
+# signé pour une autre application (même clé par erreur) est refusé
+EMETTEUR = "jbel-annour-analytix"
+DESTINATAIRE = "analytix-api"
+# Périmètre transmis à PostgreSQL (sécurité par ligne) : « * » = tout voir
+TOUT_LE_PERIMETRE = "*"
 _hacheur = PasswordHasher()
 # Empreinte d'un mot de passe quelconque : vérifiée quand l'identifiant est
 # inconnu, pour que la réponse prenne le même temps (on ne devine pas les comptes)
@@ -78,6 +84,8 @@ def creer_jeton(utilisateur: Utilisateur, parametres: ParametresApi) -> str:
     maintenant = datetime.now(UTC)
     contenu = {
         "sub": utilisateur.identifiant,
+        "iss": EMETTEUR,
+        "aud": DESTINATAIRE,
         "iat": maintenant,
         "exp": maintenant + timedelta(minutes=parametres.api_duree_jeton_minutes),
     }
@@ -113,7 +121,9 @@ def utilisateur_courant(
             jeton,
             parametres.api_secret_key.get_secret_value(),
             algorithms=[ALGORITHME],
-            options={"require": ["sub", "exp", "iat"]},
+            issuer=EMETTEUR,
+            audience=DESTINATAIRE,
+            options={"require": ["sub", "exp", "iat", "iss", "aud"]},
         )
     except jwt.PyJWTError as erreur:
         raise _REFUS from erreur
@@ -142,3 +152,36 @@ def exiger_domaine(domaine: str):
 
     verifier.domaine = domaine  # lu par les tests : chaque route déclare son domaine
     return verifier
+
+
+# ─── Périmètre de données, transmis à PostgreSQL ─────────────────────
+
+
+def perimetre(utilisateur: Utilisateur) -> str:
+    """Ce que PostgreSQL laisse voir à cet utilisateur dans les tables protégées.
+
+    « * » pour les rôles qui voient tout ; le code Sage X3 du représentant pour
+    un représentant ; vide (rien) pour un représentant sans code.
+    """
+    if utilisateur.role != "representant":
+        return TOUT_LE_PERIMETRE
+    return utilisateur.representant or ""
+
+
+class EntrepotPerimetre:
+    """L'entrepôt, lu avec le périmètre de l'utilisateur connecté."""
+
+    def __init__(self, entrepot: Entrepot, perimetre: str) -> None:
+        self._entrepot = entrepot
+        self.perimetre = perimetre
+
+    def lire(self, sql: str, parametres: dict | None = None) -> list[dict]:
+        return self._entrepot.lire(sql, parametres, perimetre=self.perimetre)
+
+
+def entrepot_lecteur(
+    utilisateur: Annotated[Utilisateur, Depends(utilisateur_courant)],
+    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+) -> EntrepotPerimetre:
+    """Dépendance des routes de données : l'entrepôt, avec le périmètre de l'utilisateur."""
+    return EntrepotPerimetre(entrepot, perimetre(utilisateur))

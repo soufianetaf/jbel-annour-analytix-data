@@ -64,6 +64,31 @@ Paramètres de période : `debut` et `fin` (AAAA-MM-JJ, inclus), un an par défa
 
 ## Sécurité
 
+### Sécurité par ligne dans PostgreSQL
+
+Le filtre du représentant est appliqué **deux fois** : dans la requête SQL de l'API, et par PostgreSQL lui-même.
+
+- Avant chaque lecture, l'API déclare à PostgreSQL le périmètre de l'utilisateur (variable `analytix.perimetre`, valable pour la seule transaction) : `*` pour les rôles qui voient tout, le code Sage X3 pour un représentant.
+- Les tables qui ont un représentant (`fct_ventes`, `fct_livraisons`, `fct_commandes`) portent une politique de sécurité par ligne (macro dbt `securite_par_ligne`, réappliquée à chaque construction) : pour le compte de l'API, seulement les lignes du périmètre ; **aucune ligne si le périmètre n'est pas déclaré**. Si l'API oubliait un jour de déclarer le périmètre, un représentant ne verrait rien, plutôt que tout.
+- dbt (propriétaire des tables) n'est jamais filtré : les agrégats restent complets. Les autres lecteurs (groupe de lecture de `marts`, Power BI) voient toutes les lignes : la sécurité par ligne de Power BI se règle dans Power BI (rôles).
+
+Vérifié sur l'entrepôt (26/11/2026) : sans périmètre 0 ligne de `fct_ventes`, `*` 72 231 lignes, un représentant ses 24 393 lignes, un code inconnu 0.
+
+### Connexion
+
+| Protection | Réglage |
+|---|---|
+| Tentatives échouées | 5 par compte et 20 par adresse, sur 15 minutes : au-delà, refus 429 avec `Retry-After`, **même avec le bon mot de passe**. Une connexion réussie remet le compteur du compte à zéro. Jamais de verrouillage définitif (sinon n'importe qui bloquerait le compte d'un autre) |
+| Jetons | Signés HS256, avec émetteur (`jbel-annour-analytix`) et destinataire (`analytix-api`) vérifiés : un jeton d'une autre application est refusé |
+
+Les compteurs de tentatives sont en mémoire, par processus de l'API : avec plusieurs processus ou serveurs, il faudra un stockage partagé.
+
+### En-têtes HTTP et documentation
+
+Chaque réponse porte `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` et, sauf la page `/docs`, `Content-Security-Policy: default-src 'none'`. La documentation interactive (`/docs`, `/redoc`, `/openapi.json`) est **fermée en production** (`ANALYTIX_ENV=prod`), sauf `API_DOCS=true`.
+
+### Protections de l'entrepôt
+
 | Protection | Où |
 |---|---|
 | L'API ne peut rien écrire dans l'entrepôt : compte `analytix_api` sans droit d'écriture, lecture seule forcée par le serveur et redemandée à chaque connexion | `infra/postgres/initialiser_entrepot.py`, `api/base.py` |
@@ -85,5 +110,6 @@ Une ligne JSON par requête (journal `analytix.acces`, sur la sortie de l'API) :
 
 1. Les routes que l'interface demandera (détail par client, par article, par machine…), au fil de son développement.
 2. Connexion par l'annuaire de l'entreprise (Active Directory) quand il sera disponible : seule la vérification du mot de passe changera.
-3. Limiter les tentatives de connexion (par adresse et par compte).
-4. Sécurité par ligne dans PostgreSQL (cahier des charges), pour que Power BI applique les mêmes règles que l'API.
+3. Stockage partagé des compteurs de tentatives, si l'API tourne sur plusieurs processus ou serveurs.
+4. Rôles de sécurité par ligne dans Power BI, à l'étape Power BI.
+5. HTTPS : l'API sera servie derrière un serveur web (proxy) qui chiffre les échanges ; jamais en HTTP simple en production.

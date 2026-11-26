@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from api.base import Entrepot
-from api.securite import Utilisateur, entrepot_api, exiger_domaine
+from api.securite import Utilisateur, entrepot_lecteur, exiger_domaine
 
 routeur = APIRouter(prefix="/qualite-donnees", tags=["qualité des données"])
 
@@ -35,7 +35,7 @@ class Controle(BaseModel):
 @routeur.get("", response_model=list[Controle], summary="Contrôles de qualité des données")
 def controles(
     _: Annotated[Utilisateur, Depends(exiger_domaine("qualite_donnees"))],
-    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)],
     service: Annotated[str | None, Query(description="Seulement ce service")] = None,
 ) -> list[dict]:
     return entrepot.lire(

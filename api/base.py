@@ -6,6 +6,12 @@ Trois protections, de la plus forte à la plus faible :
 2. chaque connexion du pool redemande la lecture seule à l'ouverture ;
 3. le code ne passe que des requêtes SELECT, avec des paramètres (jamais
    de texte de l'utilisateur collé dans le SQL).
+
+Sécurité par ligne : chaque lecture déclare d'abord à PostgreSQL le
+périmètre de l'utilisateur (variable de session « analytix.perimetre »,
+valable pour la seule transaction). Les tables protégées (ventes,
+livraisons, commandes) ne montrent à l'API que les lignes de ce périmètre,
+et RIEN si le périmètre n'est pas déclaré (macro dbt securite_par_ligne).
 """
 
 from __future__ import annotations
@@ -18,7 +24,9 @@ from api.config import ParametresApi
 class Entrepot(Protocol):
     """Ce dont les routes ont besoin : lire des lignes. Remplaçable dans les tests."""
 
-    def lire(self, sql: str, parametres: dict[str, Any] | None = None) -> list[dict[str, Any]]: ...
+    def lire(
+        self, sql: str, parametres: dict[str, Any] | None = None, perimetre: str = ""
+    ) -> list[dict[str, Any]]: ...
 
 
 class EntrepotPostgres:
@@ -53,6 +61,14 @@ class EntrepotPostgres:
     def fermer(self) -> None:
         self._pool.close()
 
-    def lire(self, sql: str, parametres: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        with self._pool.connection() as connexion:
+    def lire(
+        self, sql: str, parametres: dict[str, Any] | None = None, perimetre: str = ""
+    ) -> list[dict[str, Any]]:
+        with self._pool.connection() as connexion, connexion.transaction():
+            # « true » : la variable ne vaut que pour cette transaction ; une
+            # connexion rendue au pool ne garde pas le périmètre du précédent
+            connexion.execute(
+                "SELECT set_config('analytix.perimetre', %(perimetre)s, true)",
+                {"perimetre": perimetre},
+            )
             return connexion.execute(sql, parametres).fetchall()

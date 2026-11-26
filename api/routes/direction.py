@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from api.base import Entrepot
 from api.routes.commun import Periode, periode
-from api.securite import Utilisateur, entrepot_api, exiger_domaine
+from api.securite import Utilisateur, entrepot_lecteur, exiger_domaine
 
 routeur = APIRouter(prefix="/direction", tags=["direction"])
 
@@ -34,7 +34,7 @@ class MoisDirection(BaseModel):
 )
 def mois(
     _: Annotated[Utilisateur, Depends(exiger_domaine("direction"))],
-    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)],
     p: Annotated[Periode, Depends(periode)],
 ) -> list[dict]:
     return entrepot.lire(

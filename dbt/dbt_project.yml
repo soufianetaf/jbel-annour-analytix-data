@@ -26,6 +26,8 @@ vars:
   # Tarif de l'énergie réactive excédentaire (MAD par kvarh), contrat du distributeur.
   # Vide tant qu'il n'est pas connu : la pénalité de cos φ estimée reste vide.
   tarif_energie_reactive_mad_kvarh: null
+  # Compte PostgreSQL de l'API : la sécurité par ligne le filtre (macro securite_par_ligne)
+  role_api: analytix_api
 
 clean-targets: ["target", "dbt_packages"]
 

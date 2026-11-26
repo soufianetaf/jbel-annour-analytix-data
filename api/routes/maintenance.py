@@ -13,11 +13,11 @@ from pydantic import BaseModel
 
 from api.base import Entrepot
 from api.routes.commun import Periode, periode
-from api.securite import Utilisateur, entrepot_api, exiger_domaine
+from api.securite import Utilisateur, entrepot_lecteur, exiger_domaine
 
 routeur = APIRouter(prefix="/maintenance", tags=["maintenance"])
 Lecteur = Annotated[Utilisateur, Depends(exiger_domaine("maintenance"))]
-Base = Annotated[Entrepot, Depends(entrepot_api)]
+Base = Annotated[Entrepot, Depends(entrepot_lecteur)]
 
 
 class ZoneJour(BaseModel):

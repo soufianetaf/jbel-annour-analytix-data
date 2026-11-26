@@ -30,6 +30,7 @@ class FauxEntrepot:
     def __init__(self) -> None:
         self.comptes: dict[str, dict] = {}
         self.requetes: list[tuple[str, dict | None]] = []
+        self.perimetres: list[str] = []
 
     def ajouter(self, identifiant: str, role: str, representant: str | None = None, actif=True):
         self.comptes[identifiant] = {
@@ -40,8 +41,9 @@ class FauxEntrepot:
             "actif": actif,
         }
 
-    def lire(self, sql: str, parametres: dict | None = None) -> list[dict]:
+    def lire(self, sql: str, parametres: dict | None = None, perimetre: str = "") -> list[dict]:
         self.requetes.append((sql, parametres))
+        self.perimetres.append(perimetre)
         if "FROM api.utilisateurs" in sql:
             compte = self.comptes.get(parametres["identifiant"])
             return [compte] if compte else []

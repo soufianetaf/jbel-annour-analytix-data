@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from api.base import Entrepot
 from api.routes.commun import Periode, periode
-from api.securite import Utilisateur, entrepot_api, exiger_domaine
+from api.securite import Utilisateur, entrepot_lecteur, exiger_domaine
 
 routeur = APIRouter(prefix="/ventes", tags=["ventes"])
 Lecteur = Annotated[Utilisateur, Depends(exiger_domaine("ventes"))]
@@ -48,7 +48,7 @@ class CaClient(BaseModel):
 @routeur.get("/ca-mensuel", response_model=list[CaMois], summary="CA net HT par mois")
 def ca_mensuel(
     utilisateur: Lecteur,
-    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)],
     p: Annotated[Periode, Depends(periode)],
 ) -> list[dict]:
     return entrepot.lire(
@@ -69,7 +69,7 @@ def ca_mensuel(
 @routeur.get("/clients", response_model=list[CaClient], summary="Meilleurs clients par CA net HT")
 def meilleurs_clients(
     utilisateur: Lecteur,
-    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)],
     p: Annotated[Periode, Depends(periode)],
     limite: Annotated[int, Query(ge=1, le=200)] = 20,
 ) -> list[dict]:
@@ -118,7 +118,7 @@ class LivraisonNonFacturee(BaseModel):
 )
 def cycle_mois(
     utilisateur: Lecteur,
-    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)],
     p: Annotated[Periode, Depends(periode)],
 ) -> list[dict]:
     # Lu dans fct_livraisons (pas agg_commercial_mois) : le représentant
@@ -150,7 +150,7 @@ def cycle_mois(
 )
 def livre_non_facture(
     utilisateur: Lecteur,
-    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)],
     limite: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[dict]:
     return entrepot.lire(

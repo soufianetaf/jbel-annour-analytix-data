@@ -156,3 +156,84 @@ def test_groupe_de_lecture_ne_voit_pas_les_comptes(entrepot: ConfigEntrepot) -> 
             "SELECT has_table_privilege('analytix_lecture_marts', 'api.utilisateurs', 'SELECT')"
         )
         assert curseur.fetchone()[0] is False
+
+
+# ─── Sécurité par ligne (macro dbt securite_par_ligne) ───────────────
+
+
+def _politique_dbt(table: str, role_api: str) -> list[str]:
+    """Les instructions de la macro dbt, telles quelles, pour une table d'essai.
+
+    Le test lit le fichier de la macro : il vérifie la vraie règle, pas une copie.
+    """
+    import re
+    from pathlib import Path
+
+    texte = (
+        Path(__file__).resolve().parents[1] / "dbt" / "macros" / "securite_par_ligne.sql"
+    ).read_text(encoding="utf-8")
+    corps = re.search(r"-%\}(.*?)\{%-\s*endmacro", texte, re.S).group(1)
+    corps = corps.replace("{{ this }}", table).replace("{{ colonne }}", "representant")
+    corps = corps.replace("""{{ var("role_api") }}""", role_api)
+    return [instruction.strip() for instruction in corps.split(";") if instruction.strip()]
+
+
+@pytest.fixture
+def table_protegee(entrepot: ConfigEntrepot):
+    with (
+        closing(_connexion(entrepot, entrepot.dw_user, entrepot.dw_password)) as chargeur,
+        chargeur.cursor() as curseur,
+    ):
+        curseur.execute("DROP TABLE IF EXISTS marts.essai_rls")
+        curseur.execute("CREATE TABLE marts.essai_rls (representant text, montant int)")
+        curseur.execute(
+            "INSERT INTO marts.essai_rls VALUES ('R1', 10), ('R1', 20), ('R2', 5), (NULL, 1)"
+        )
+        for instruction in _politique_dbt("marts.essai_rls", entrepot.api_db_user):
+            curseur.execute(instruction)
+    yield "marts.essai_rls"
+    with (
+        closing(_connexion(entrepot, entrepot.dw_user, entrepot.dw_password)) as chargeur,
+        chargeur.cursor() as curseur,
+    ):
+        curseur.execute("DROP TABLE IF EXISTS marts.essai_rls")
+
+
+def _lignes_vues(api, table: str, perimetre: str | None) -> int:
+    api.execute("BEGIN")
+    if perimetre is not None:
+        api.execute("SELECT set_config('analytix.perimetre', %s, true)", (perimetre,))
+    api.execute(f"SELECT count(*) FROM {table}")  # noqa: S608 - nom de table du test
+    vues = api.fetchone()[0]
+    api.execute("COMMIT")
+    return vues
+
+
+@pytest.mark.parametrize(
+    ("perimetre", "attendu"),
+    [
+        (None, 0),  # périmètre oublié : rien, jamais tout
+        ("", 0),
+        ("R9", 0),  # code inconnu
+        ("R1", 2),  # ses lignes seulement
+        ("*", 4),  # direction, commercial : tout
+    ],
+)
+def test_securite_par_ligne_pour_l_api(api, table_protegee, perimetre, attendu) -> None:
+    assert _lignes_vues(api, table_protegee, perimetre) == attendu
+
+
+def test_le_perimetre_ne_survit_pas_a_la_transaction(api, table_protegee) -> None:
+    # Une connexion réutilisée (pool) ne garde pas le périmètre du précédent
+    assert _lignes_vues(api, table_protegee, "*") == 4
+    assert _lignes_vues(api, table_protegee, None) == 0
+
+
+def test_le_chargeur_voit_toutes_les_lignes(entrepot: ConfigEntrepot, table_protegee) -> None:
+    # dbt (propriétaire des tables) n'est jamais filtré : les agrégats restent complets
+    with (
+        closing(_connexion(entrepot, entrepot.dw_user, entrepot.dw_password)) as chargeur,
+        chargeur.cursor() as curseur,
+    ):
+        curseur.execute(f"SELECT count(*) FROM {table_protegee}")  # noqa: S608
+        assert curseur.fetchone()[0] == 4

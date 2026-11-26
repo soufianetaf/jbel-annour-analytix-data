@@ -86,6 +86,8 @@ models:
       pro forma exclues. Montants et quantités SIGNÉS : un avoir est négatif.
       CA net = somme de montant_ht_signe (docs/indicateurs/ventes_ca_net.md).
     config:
+      # Sécurité par ligne : le représentant ne voit que ses lignes, même en SQL
+      post_hook: ["{{ securite_par_ligne('representant') }}"]
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -156,6 +158,8 @@ models:
       Livraisons clients avec leur facture et le délai entre les deux.
       Grain : une livraison. Définitions : docs/indicateurs/commandes_livraisons.md
     config:
+      # Sécurité par ligne : le représentant ne voit que ses lignes, même en SQL
+      post_hook: ["{{ securite_par_ligne('representant') }}"]
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -184,6 +188,8 @@ models:
       Commandes clients avec leurs livraisons, le délai jusqu'à la première
       expédition et le reste à livrer. Grain : une commande.
     config:
+      # Sécurité par ligne : le représentant ne voit que ses lignes, même en SQL
+      post_hook: ["{{ securite_par_ligne('representant') }}"]
       contract: {enforced: true}
     constraints:
       - type: primary_key
