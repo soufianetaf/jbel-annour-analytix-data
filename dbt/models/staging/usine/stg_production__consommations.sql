@@ -26,6 +26,10 @@ select
     {{ nombre_saisi('consommation_fuel_four') }}                as fuel_four,
     {{ nombre_saisi('consommation_charbon') }}                  as charbon,
     {{ nombre_saisi('consommation_propane') }}                  as propane,
+    -- « Consommation_Coke_Micronésie » : coke micronisé (orthographe de la source)
+    {{ nombre_saisi('consommation_coke_micron_sie') }}          as coke_micronise,
+    -- « Consommation_Faitour » : grignons d'olive (biomasse), à confirmer
+    {{ nombre_saisi('consommation_faitour') }}                  as grignons,
     {{ nombre_saisi('total_production_en_tonne') }}             as production_tonnes,
     {{ texte('consommation_lectrique') }}                       as electricite_saisi,
     {{ texte('consommation_coke_four') }}                       as coke_four_saisi,

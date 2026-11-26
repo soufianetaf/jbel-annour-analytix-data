@@ -80,9 +80,9 @@ controle as (
 )
 
 select
-    cast(compteur as text)                                      as compteur,
+    cast(controle.compteur as text)                             as compteur,
     cast(niveau as text)                                        as niveau,
-    cast(jour as date)                                          as jour,
+    cast(controle.jour as date)                                 as jour,
     cast(case when kwh_valide then kwh_brut end as numeric(18, 3))
                                                                 as kwh,
     cast(coalesce(kwh_valide, false) as boolean)                as kwh_valide,
@@ -97,5 +97,20 @@ select
     cast(part_cos_phi_sous_0_8 as numeric(6, 4))                as part_cos_phi_sous_0_8,
     cast(releves_cos_phi_invalides as integer)                  as releves_cos_phi_invalides,
     cast(puissance_max as numeric(18, 3))                       as puissance_max,
-    cast(releves as integer)                                    as releves
+    cast(releves as integer)                                    as releves,
+    -- Énergie réactive : les relevés valides ne couvrent que quelques heures
+    -- par jour (collecte par à-coups) ; le rapport réactif / actif mesuré sur
+    -- ces relevés (int_electricite__reactif_jour) est appliqué aux kWh du jour
+    cast(r.energie_reactive_kvarh / nullif(r.energie_active_kwh, 0) as numeric(8, 4))
+                                                                as tan_phi_moyen,
+    cast(case when kwh_valide
+              then kwh_brut * r.energie_reactive_kvarh / nullif(r.energie_active_kwh, 0) end as numeric(18, 3))
+                                                                as energie_reactive_kvarh,
+    cast(case when kwh_valide
+              then kwh_brut * r.energie_reactive_excedentaire_kvarh / nullif(r.energie_active_kwh, 0) end as numeric(18, 3))
+                                                                as energie_reactive_excedentaire_kvarh,
+    cast(r.heures_mesurees as numeric(10, 4))                   as heures_cos_phi_mesurees
 from controle
+left join {{ ref('int_electricite__reactif_jour') }} as r
+    on r.compteur = controle.compteur
+   and r.jour = controle.jour

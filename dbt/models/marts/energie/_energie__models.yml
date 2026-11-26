@@ -36,6 +36,10 @@ models:
       - {name: releves_cos_phi_invalides, data_type: integer, description: "Relevés au cos φ hors de 0 à 1 (erreurs de mesure)."}
       - {name: puissance_max, data_type: "numeric(18,3)"}
       - {name: releves, data_type: integer}
+      - {name: tan_phi_moyen, data_type: "numeric(8,4)", description: "Énergie réactive / énergie active, sur les relevés valides (P × tan φ : la puissance réactive relevée est inutilisable)."}
+      - {name: energie_reactive_kvarh, data_type: "numeric(18,3)", description: "kWh du jour × tan φ moyen."}
+      - {name: energie_reactive_excedentaire_kvarh, data_type: "numeric(18,3)", description: "Au-delà de tan φ 0,75 (cos φ 0,8), rapporté aux kWh du jour : base des pénalités."}
+      - {name: heures_cos_phi_mesurees, data_type: "numeric(10,4)", description: "Heures couvertes par des relevés valides ce jour-là."}
 
   - name: agg_energie_jour
     description: >
@@ -61,6 +65,78 @@ models:
       - {name: coke_consomme_tonnes, data_type: "numeric(12,3)"}
       - {name: coke_livre_tonnes, data_type: "numeric(12,3)"}
 
+  - name: agg_electricite_machine_jour
+    description: >
+      Électricité de chaque machine par jour : par tonne cuite du site et par
+      unité qu'elle produit. Grain : un compteur par machine × un jour.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [compteur, jour]
+    columns:
+      - {name: compteur, data_type: text}
+      - {name: jour, data_type: date}
+      - {name: kwh, data_type: "numeric(18,3)"}
+      - {name: tonnes_cuites_site, data_type: "numeric(18,3)"}
+      - {name: kwh_par_tonne, data_type: "numeric(12,3)", description: "kWh de la machine / tonnes cuites du site."}
+      - {name: production_machine, data_type: "numeric(18,3)"}
+      - {name: unite_production, data_type: text}
+      - {name: kwh_par_unite, data_type: "numeric(12,3)", description: "kWh / production de la machine (étagère, tonne, wagon, paquet)."}
+      - {name: cos_phi_moyen, data_type: "numeric(6,4)"}
+      - {name: energie_reactive_excedentaire_kvarh, data_type: "numeric(18,3)"}
+
+  - name: fct_combustibles_jour
+    description: >
+      Combustibles et électricité par jour : automates et rapport saisi côte à
+      côte, ratios par tonne et contrôle de l'un par l'autre. Grain : un jour.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [jour]
+    columns:
+      - {name: jour, data_type: date}
+      - {name: tonnes_cuites, data_type: "numeric(18,3)", description: "Automate du four."}
+      - {name: kwh_site, data_type: "numeric(18,3)", description: "Transformateurs."}
+      - {name: coke_automate_tonnes, data_type: "numeric(12,3)"}
+      - {name: coke_automate_kg_par_tonne, data_type: "numeric(12,3)"}
+      - {name: production_saisie_tonnes, data_type: "numeric(18,3)"}
+      - {name: electricite_saisie_kwh, data_type: "numeric(18,3)"}
+      - {name: fuel_four_saisi, data_type: "numeric(12,3)", description: "Unité à confirmer (tonnes ?)."}
+      - {name: coke_micronise_saisi, data_type: "numeric(12,3)", description: "Tonnes (à confirmer)."}
+      - {name: coke_four_saisi, data_type: "numeric(12,3)"}
+      - {name: propane_saisi, data_type: "numeric(12,3)", description: "Unité à confirmer."}
+      - {name: charbon_saisi, data_type: "numeric(12,3)"}
+      - {name: grignons_saisis, data_type: "numeric(12,3)"}
+      - {name: rapports_du_jour, data_type: integer, description: "Rapports saisis ce jour-là ; le dernier est retenu."}
+      - {name: fuel_four_par_tonne, data_type: "numeric(12,5)"}
+      - {name: coke_micronise_kg_par_tonne, data_type: "numeric(12,3)"}
+      - {name: propane_par_tonne, data_type: "numeric(12,5)"}
+      - {name: ratio_electricite_saisie_compteur, data_type: "numeric(8,4)", description: "Électricité saisie / compteur (1 = identiques)."}
+      - {name: ratio_production_saisie_four, data_type: "numeric(8,4)", description: "Production saisie / tonnes cuites de l'automate."}
+
+  - name: agg_electricite_prix_mois
+    description: >
+      Facture d'électricité, kWh, prix du kWh sur 12 mois et énergie réactive
+      excédentaire (pénalités cos φ). Grain : un mois.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [mois]
+    columns:
+      - {name: mois, data_type: date}
+      - {name: facture_electricite, data_type: "numeric(18,2)", description: "Comptes 61251 du mois (comptabilisation irrégulière)."}
+      - {name: kwh_mesures, data_type: "numeric(18,3)"}
+      - {name: jours_complets, data_type: integer}
+      - {name: kwh_estimes, data_type: "numeric(18,3)", description: "kWh moyen d'un jour complet × jours du mois."}
+      - {name: facture_12_mois, data_type: "numeric(18,2)"}
+      - {name: kwh_estimes_12_mois, data_type: "numeric(18,3)"}
+      - {name: jours_complets_12_mois, data_type: integer}
+      - {name: prix_kwh_12_mois, data_type: "numeric(10,4)", description: "MAD par kWh ; vide sans 12 mois et 180 jours complets."}
+      - {name: energie_reactive_excedentaire_kvarh, data_type: "numeric(18,3)", description: "Transformateurs, cos φ < 0,8."}
+      - {name: penalite_cos_phi_estimee, data_type: "numeric(18,2)", description: "Vide tant que la variable tarif_energie_reactive_mad_kvarh n'est pas renseignée."}
 unit_tests:
   - name: electricite_la_valeur_veille_va_au_jour_precedent
     description: >
@@ -75,9 +151,29 @@ unit_tests:
           - {compteur: transfo2, niveau: "général", id_releve: 3, releve_le: "2026-11-25 08:00:00", consommation_veille: 19362, index_energie: 500, cos_phi: null, cos_phi_valide: false, puissance_active: 650}
           - {compteur: four, niveau: machine, id_releve: 1, releve_le: "2026-11-24 08:00:00", consommation_veille: 6000, index_energie: 1, cos_phi: 0.9, cos_phi_valide: true, puissance_active: 400}
           - {compteur: four, niveau: machine, id_releve: 2, releve_le: "2026-11-25 08:00:00", consommation_veille: -589773, index_energie: 1, cos_phi: 0.9, cos_phi_valide: true, puissance_active: 400}
+      - input: ref('int_electricite__reactif_jour')
+        rows: []
     expect:
       rows:
         - {compteur: transfo2, jour: "2026-11-24", kwh: 19362, kwh_valide: true, cos_phi_moyen: 0.8, part_cos_phi_sous_0_8: 0.5, releves_cos_phi_invalides: 0, puissance_max: 900}
         - {compteur: transfo2, jour: "2026-11-25", kwh: null, kwh_valide: false, cos_phi_moyen: null, part_cos_phi_sous_0_8: null, releves_cos_phi_invalides: 1, puissance_max: 650}
         - {compteur: four, jour: "2026-11-24", kwh: null, kwh_valide: false, cos_phi_moyen: 0.9, part_cos_phi_sous_0_8: 0, releves_cos_phi_invalides: 0, puissance_max: 400}
         - {compteur: four, jour: "2026-11-25", kwh: null, kwh_valide: false, cos_phi_moyen: 0.9, part_cos_phi_sous_0_8: 0, releves_cos_phi_invalides: 0, puissance_max: 400}
+
+  - name: combustibles_dernier_rapport_du_jour
+    description: >
+      Deux rapports saisis le même jour : le dernier (plus grand identifiant)
+      est retenu ; 1 840 kg de coke micronisé pour 920 t font 2 kg par tonne ;
+      27 000 kWh saisis pour 30 000 au compteur : ratio 0,9.
+    model: fct_combustibles_jour
+    given:
+      - input: ref('stg_production__consommations')
+        rows:
+          - {id_rapport: 1, jour: "2026-06-10", production_tonnes: 500, electricite: 1, coke_micronise: 1}
+          - {id_rapport: 2, jour: "2026-06-10", production_tonnes: 920, electricite: 27000, coke_micronise: 1.84, fuel_four: 4.6}
+      - input: ref('agg_energie_jour')
+        rows:
+          - {jour: "2026-06-10", tonnes_cuites: 1000, kwh_site: 30000}
+    expect:
+      rows:
+        - {jour: "2026-06-10", production_saisie_tonnes: 920.000, rapports_du_jour: 2, coke_micronise_kg_par_tonne: 2.000, fuel_four_par_tonne: 0.00500, ratio_electricite_saisie_compteur: 0.9000, ratio_production_saisie_four: 0.9200}

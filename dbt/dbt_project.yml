@@ -23,6 +23,9 @@ vars:
   # Attention : le JOURNAL J42 n'est pas un journal de clôture (il contient
   # aussi des opérations diverses et des amortissements toute l'année).
   type_piece_cloture: CLOS1
+  # Tarif de l'énergie réactive excédentaire (MAD par kvarh), contrat du distributeur.
+  # Vide tant qu'il n'est pas connu : la pénalité de cos φ estimée reste vide.
+  tarif_energie_reactive_mad_kvarh: null
 
 clean-targets: ["target", "dbt_packages"]
 

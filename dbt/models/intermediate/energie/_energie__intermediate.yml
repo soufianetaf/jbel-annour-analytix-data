@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: int_electricite__reactif_jour
+    description: >
+      Énergie active et réactive par compteur et par jour, recalculées à partir
+      de la puissance active et du cos φ (la puissance réactive relevée est
+      inutilisable). Grain : un compteur × un jour.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [compteur, jour]
+
+unit_tests:
+  - name: reactif_au_dela_de_cos_phi_0_8
+    description: >
+      Deux relevés à 600 kW pendant 5 minutes chacun : à cos φ 0,8 (tan φ 0,75)
+      rien n'est excédentaire ; à cos φ 0,6 (tan φ 1,333) l'excédent vaut
+      600 × 0,583 × 5/60 = 29,17 kvarh. Le dernier relevé du compteur n'a
+      pas de durée (aucun relevé après lui).
+    model: int_electricite__reactif_jour
+    given:
+      - input: ref('stg_electricite__releves')
+        rows:
+          - {compteur: transfo2, releve_le: "2026-11-24 08:00:00", puissance_active: 600, cos_phi: 0.8}
+          - {compteur: transfo2, releve_le: "2026-11-24 08:05:00", puissance_active: 600, cos_phi: 0.6}
+          - {compteur: transfo2, releve_le: "2026-11-24 08:10:00", puissance_active: 600, cos_phi: 0.6}
+    expect:
+      rows:
+        - {compteur: transfo2, jour: "2026-11-24", energie_active_kwh: 100.000, energie_reactive_excedentaire_kvarh: 29.167, heures_mesurees: 0.1667}
