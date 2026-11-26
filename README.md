@@ -412,6 +412,7 @@ uv run python -m ingestion.usine_machines           # automates : moulage, séch
 uv run python -m ingestion.usine_electricite        # 13 compteurs électriques (relevé toutes les 5 minutes)
 uv run python -m ingestion.usine_qualite            # contrôles qualité en sortie du four, mesures des briques
 uv run python -m ingestion.usine_maintenance        # préventif, interventions sur panne, demandes d'intervention
+uv run python -m ingestion.usine_rh                 # RH AGRÉGÉE : effectifs, présence, recrutement (aucune donnée individuelle)
 uv run python -m infra.ci.verifier_types_staging     # types des colonnes nettoyées en staging
 cd dbt
 uv run --env-file ../.env dbt deps                  # installe les bibliothèques dbt

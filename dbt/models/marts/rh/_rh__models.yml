@@ -1,0 +1,97 @@
+version: 2
+
+# Tables RH : agrégées et anonymes. L'API ne les montre qu'au rôle RH
+# (et à la direction pour les agrégats), cahier des charges, rôles.
+
+models:
+  - name: fct_effectifs_service
+    description: >
+      Effectif par service, application RH et pointeuse côte à côte.
+      Grain : un service. Définitions : docs/indicateurs/rh.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [service]
+    columns:
+      - {name: service, data_type: text}
+      - {name: effectif_rh, data_type: integer}
+      - {name: embauches_12_mois, data_type: integer}
+      - {name: effectif_pointeuse, data_type: integer}
+
+  - name: agg_presence_service_jour
+    description: "Présence par département et par jour, d'après les pointages. Grain : un département × un jour."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [service, jour]
+    columns:
+      - {name: service, data_type: text}
+      - {name: jour, data_type: date}
+      - {name: personnes_presentes, data_type: integer}
+      - {name: pointages, data_type: integer}
+      - {name: effectif_pointeuse, data_type: integer}
+      - {name: taux_presence, data_type: "numeric(6,4)", description: "Vide pour le groupe fusionné « autres »."}
+      - {name: heures_moyennes_site, data_type: "numeric(6,2)"}
+      - {name: part_pointage_unique, data_type: "numeric(6,4)", description: "Personnes qui n'ont pointé qu'une fois (entrée ou sortie manquante)."}
+
+  - name: agg_presence_jour
+    description: "Présence sur le site par jour. Grain : un jour."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [jour]
+    columns:
+      - {name: jour, data_type: date}
+      - {name: jour_semaine, data_type: integer, description: "1 = lundi … 7 = dimanche."}
+      - {name: personnes_presentes, data_type: integer}
+      - {name: pointages, data_type: integer}
+      - {name: effectif_pointeuse, data_type: integer}
+      - {name: taux_presence, data_type: "numeric(6,4)"}
+      - {name: heures_moyennes_site, data_type: "numeric(6,2)"}
+
+  - name: agg_recrutement
+    description: "Candidatures reçues par poste et par mois. Grain : un poste × un mois."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [poste, mois]
+    columns:
+      - {name: poste, data_type: text}
+      - {name: mois, data_type: date}
+      - {name: candidatures, data_type: integer}
+
+  - name: agg_embauches_annee
+    description: "Embauches par année, toute l'entreprise. Grain : une année."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [annee]
+    columns:
+      - {name: annee, data_type: text}
+      - {name: embauches, data_type: integer}
+
+unit_tests:
+  - name: rh_taux_presence_et_heures
+    description: >
+      40 personnes ont pointé sur 50 au département : taux de présence 80 % ;
+      30 avec une entrée et une sortie pour 14 400 minutes : 8 h en moyenne ;
+      10 n'ont pointé qu'une fois : 25 %. Le groupe « autres » n'a pas de taux.
+    model: agg_presence_service_jour
+    given:
+      - input: ref('stg_rh__pointage_service_jour')
+        rows:
+          - {service: PRODUCTION, jour: "2026-10-05", personnes: 40, pointages: 70, personnes_entree_sortie: 30, minutes_sur_site: 14400}
+          - {service: "autres (moins de 5 personnes)", jour: "2026-10-05", personnes: 6, pointages: 12, personnes_entree_sortie: 6, minutes_sur_site: 2880}
+      - input: ref('stg_rh__effectifs_pointeuse')
+        rows:
+          - {service: PRODUCTION, effectif: 50}
+          - {service: "autres (moins de 5 personnes)", effectif: 75}
+    expect:
+      rows:
+        - {service: PRODUCTION, taux_presence: 0.8000, heures_moyennes_site: 8.00, part_pointage_unique: 0.2500}
+        - {service: "autres (moins de 5 personnes)", taux_presence: null, heures_moyennes_site: 8.00, part_pointage_unique: 0.0000}

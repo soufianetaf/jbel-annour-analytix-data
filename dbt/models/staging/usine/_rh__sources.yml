@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: rh
+    description: >
+      Agrégats RH calculés sur le serveur de l'usine (bases RH et pointage) par
+      ingestion.usine_rh : aucune ligne de salarié n'est copiée, les groupes de
+      moins de 5 personnes sont fusionnés. Paie non copiée.
+    schema: raw_rh
+    loaded_at_field: _charge_le
+    tables:
+      - name: effectifs_service
+        description: "Effectif actif par service (application RH)."
+      - name: embauches_annee
+        description: "Embauches par année (toute l'entreprise)."
+      - name: effectifs_pointeuse
+        description: "Effectif enregistré dans les pointeuses, par département."
+      - name: pointage_service_jour
+        description: "Présence par département et par jour, d'après les pointages."
+      - name: candidatures_mois
+        description: "Candidatures reçues par poste et par mois."

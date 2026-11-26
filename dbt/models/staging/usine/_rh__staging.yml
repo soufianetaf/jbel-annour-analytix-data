@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: stg_rh__effectifs_service
+    description: "Effectif actif par service harmonisé (application RH, agrégé). Grain : un service."
+    columns:
+      - name: service
+        data_tests: [unique, not_null]
+
+  - name: stg_rh__effectifs_pointeuse
+    description: "Effectif des pointeuses par département harmonisé (agrégé). Grain : un département."
+    columns:
+      - name: service
+        data_tests: [unique, not_null]
+
+  - name: stg_rh__pointage_service_jour
+    description: "Présence par département harmonisé et par jour (agrégé). Grain : un département × un jour."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [service, jour]
+
+  - name: stg_rh__embauches_annee
+    description: "Embauches par année (agrégé). Grain : une année."
+    columns:
+      - name: annee
+        data_tests: [unique, not_null]
+
+  - name: stg_rh__candidatures_mois
+    description: "Candidatures par poste et par mois (comptages). Grain : un poste × un mois."
+
+unit_tests:
+  - name: rh_services_harmonises_et_additionnes
+    description: >
+      « AMÉLIORATION CONTINUE » (12) et « AMELIORATION CONTINUE » (7) ne font
+      qu'un service de 19 ; « DIRECTION GENERAL » devient « DIRECTION GENERALE » ;
+      le groupe des petits services garde son libellé.
+    model: stg_rh__effectifs_pointeuse
+    given:
+      - input: source('rh', 'effectifs_pointeuse')
+        rows:
+          - {service: "AMÉLIORATION CONTINUE", personnes: 12}
+          - {service: "AMELIORATION CONTINUE", personnes: 7}
+          - {service: "DIRECTION GENERAL", personnes: 5}
+          - {service: "autres (moins de 5 personnes)", personnes: 75}
+    expect:
+      rows:
+        - {service: "AMELIORATION CONTINUE", effectif: 19}
+        - {service: "DIRECTION GENERALE", effectif: 5}
+        - {service: "autres (moins de 5 personnes)", effectif: 75}
