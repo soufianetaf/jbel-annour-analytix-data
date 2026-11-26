@@ -45,13 +45,20 @@ La **seule** table des droits est `api/roles.py`. Chaque route déclare son doma
 | Domaine | Rôles | Routes |
 |---|---|---|
 | ventes | direction, commercial, finance, représentant (**ses ventes seulement**) | `/v1/ventes/ca-mensuel`, `/v1/ventes/clients` |
+| finance | direction, finance | `/v1/finance/compte-de-resultat`, `/v1/finance/creances`, `/v1/finance/tresorerie` |
+| achats | direction, achats, finance | `/v1/achats/mois`, `/v1/achats/fournisseurs`, `/v1/stock/sites`, `/v1/stock/articles` |
+| production | direction, production, maintenance | `/v1/production/postes`, `/v1/machines/jour`, `/v1/energie/jour`, `/v1/energie/prix`, `/v1/qualite/chariots`, `/v1/qualite/pertes-poids` |
+| maintenance | direction, maintenance, production | `/v1/maintenance/zones`, `/v1/maintenance/interventions` |
+| cout_revient | direction, finance | `/v1/cout-revient/mois`, `/v1/cout-revient/marges` |
 | direction | direction, finance | `/v1/direction/mois` |
 | rh | direction, rh | `/v1/rh/effectifs`, `/v1/rh/presence` |
 | qualite_donnees | tous, administrateur compris (comptages seulement) | `/v1/qualite-donnees` |
 
+Chaque route lit une table de synthèse de `marts`, déjà rapprochée de sa source ; les définitions sont dans `docs/indicateurs/`. Les listes ont une limite (`limite`, 200 ou 500 au plus).
+
 - **Représentant** : le filtre sur son code Sage X3 est dans la requête SQL, pas dans l'écran. Un compte représentant sans code ne voit rien.
 - **Administrateur** : gère les comptes, ne voit aucune donnée métier.
-- Les autres domaines (finance, achats, stock, magasin, production, machines, énergie, qualité, maintenance, coût de revient) arrivent à l'étape suivante.
+- **Ajouter une route** : la déclarer dans un module de `api/routes/` avec `exiger_domaine("…")`, et ajouter le module à `ROUTEURS` dans `api/main.py`. Les tests la retrouvent seuls et vérifient ses droits pour chaque rôle.
 
 Paramètres de période : `debut` et `fin` (AAAA-MM-JJ, inclus), un an par défaut, dix ans au plus.
 
@@ -71,12 +78,12 @@ Paramètres de période : `debut` et `fin` (AAAA-MM-JJ, inclus), un an par défa
 Une ligne JSON par requête (journal `analytix.acces`, sur la sortie de l'API) : date, utilisateur, rôle, méthode, chemin, filtres, statut, durée, adresse du client. Jamais de mot de passe ni de jeton.
 
 ```json
-{"le": "2026-11-26T10:12:03+00:00", "utilisateur": "s.alami", "role": "direction", "methode": "GET", "chemin": "/v1/direction/mois", "filtres": {"debut": "2026-01-01"}, "statut": 200, "duree_ms": 41.2, "client": "10.0.0.15"}
+{"le": "2026-11-26T10:12:03+00:00", "utilisateur": "s.alami", "role": "direction", "methode": "GET", "chemin": "/v1/direction/mois", "filtres": {"debut": "2026-01-01"}, "statut": 200, "duree_ms": 41.2, "client": "<adresse du poste>"}
 ```
 
 ## À venir
 
-1. Les routes des autres domaines.
+1. Les routes que l'interface demandera (détail par client, par article, par machine…), au fil de son développement.
 2. Connexion par l'annuaire de l'entreprise (Active Directory) quand il sera disponible : seule la vérification du mot de passe changera.
 3. Limiter les tentatives de connexion (par adresse et par compte).
 4. Sécurité par ligne dans PostgreSQL (cahier des charges), pour que Power BI applique les mêmes règles que l'API.

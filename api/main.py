@@ -11,9 +11,36 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.base import Entrepot, EntrepotPostgres
 from api.config import ParametresApi
 from api.journal import JournalAcces
-from api.routes import auth, direction, qualite_donnees, rh, sante, ventes
+from api.routes import (
+    achats,
+    auth,
+    cout_revient,
+    direction,
+    finance,
+    maintenance,
+    production,
+    qualite_donnees,
+    rh,
+    sante,
+    ventes,
+)
 
 VERSION = "v1"
+# Tous les routeurs de l'API, dans l'ordre. Les tests parcourent CETTE liste
+# (et la comparent au schéma OpenAPI) pour vérifier les droits de chaque route.
+ROUTEURS = (
+    sante,
+    auth,
+    ventes,
+    finance,
+    achats,
+    production,
+    maintenance,
+    cout_revient,
+    direction,
+    rh,
+    qualite_donnees,
+)
 
 
 def creer_app(parametres: ParametresApi | None = None, entrepot: Entrepot | None = None) -> FastAPI:
@@ -52,7 +79,7 @@ def creer_app(parametres: ParametresApi | None = None, entrepot: Entrepot | None
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type"],
     )
-    for module in (sante, auth, ventes, direction, rh, qualite_donnees):
+    for module in ROUTEURS:
         app.include_router(module.routeur, prefix=f"/{VERSION}")
     return app
 

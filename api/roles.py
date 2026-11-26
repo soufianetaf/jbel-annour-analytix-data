@@ -27,6 +27,16 @@ DOMAINES: dict[str, frozenset[str]] = {
     "ventes": frozenset({"direction", "commercial", "representant", "finance"}),
     # Tableau de bord de la direction (coût, marge, trésorerie)
     "direction": frozenset({"direction", "finance"}),
+    # Comptabilité : compte de résultat, créances, trésorerie
+    "finance": frozenset({"direction", "finance"}),
+    # Achats, stock et magasin
+    "achats": frozenset({"direction", "achats", "finance"}),
+    # Usine : production par poste, machines, énergie, qualité des briques
+    "production": frozenset({"direction", "production", "maintenance"}),
+    # Maintenance : préventif, interventions, arrêts
+    "maintenance": frozenset({"direction", "maintenance", "production"}),
+    # Coût de revient et marge par type de brique
+    "cout_revient": frozenset({"direction", "finance"}),
     # RH agrégée : seul le rôle RH, et la direction pour les agrégats
     "rh": frozenset({"direction", "rh"}),
     # Qualité des données : nombre de lignes à corriger par service, sans

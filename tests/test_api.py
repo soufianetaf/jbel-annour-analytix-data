@@ -18,7 +18,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from api.config import ParametresApi
-from api.main import creer_app
+from api.main import ROUTEURS, VERSION, creer_app
 from api.roles import DOMAINES, ROLES
 from api.securite import empreinte
 
@@ -80,15 +80,29 @@ def _entete(client: TestClient, identifiant: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {reponse.json()['access_token']}"}
 
 
-def _routes_protegees(client: TestClient) -> list[tuple[str, str]]:
-    """(chemin, domaine) de chaque route GET qui déclare un domaine."""
+def _routes_get() -> list[APIRoute]:
+    """Chaque route GET de l'API, prise dans la liste des routeurs (api/main.py).
+
+    Pas dans app.routes : depuis FastAPI 0.16x, les routes incluses y sont
+    rangées dans des objets internes, et le test passait sans en voir aucune.
+    test_les_routes_testees_sont_celles_publiees le vérifie.
+    """
+    return [
+        route
+        for module in ROUTEURS
+        for route in module.routeur.routes
+        if isinstance(route, APIRoute) and "GET" in route.methods
+    ]
+
+
+def _routes_protegees(client: TestClient | None = None) -> list[tuple[str, str]]:
+    """(chemin complet, domaine) de chaque route GET qui déclare un domaine."""
     routes = []
-    for route in client.app.routes:
-        if isinstance(route, APIRoute) and "GET" in route.methods:
-            domaines = [getattr(d.call, "domaine", None) for d in route.dependant.dependencies]
-            domaines = [d for d in domaines if d]
-            if domaines:
-                routes.append((route.path, domaines[0]))
+    for route in _routes_get():
+        domaines = [getattr(d.call, "domaine", None) for d in route.dependant.dependencies]
+        domaines = [d for d in domaines if d]
+        if domaines:
+            routes.append((f"/{VERSION}{route.path}", domaines[0]))
     return routes
 
 
@@ -173,9 +187,24 @@ def test_toutes_les_routes_de_donnees_declarent_un_domaine(client):
     """Toute route GET, sauf /sante et /auth/moi, doit être réservée à un domaine."""
     libres = {"/v1/sante", "/v1/auth/moi"}
     protegees = {chemin for chemin, _ in _routes_protegees(client)}
-    for route in client.app.routes:
-        if isinstance(route, APIRoute) and "GET" in route.methods and route.path.startswith("/v1"):
-            assert route.path in protegees | libres, f"{route.path} sans domaine"
+    for route in _routes_get():
+        chemin = f"/{VERSION}{route.path}"
+        assert chemin in protegees | libres, f"{chemin} sans domaine"
+
+
+def test_les_routes_testees_sont_celles_publiees(client):
+    """Les routes vérifiées ici sont exactement celles que l'API publie (OpenAPI).
+
+    Garde-fou : une route publiée hors de la liste des routeurs échapperait
+    à la matrice des droits ; et une matrice vide passerait sans rien tester.
+    """
+    publiees = {
+        chemin for chemin, methodes in client.app.openapi()["paths"].items() if "get" in methodes
+    }
+    testees = {f"/{VERSION}{route.path}" for route in _routes_get()}
+    assert testees == publiees
+    # 23 routes de données au 26/11/2026 : à relever quand on en ajoute
+    assert len(_routes_protegees(client)) >= 23
 
 
 def test_toutes_les_routes_de_donnees_exigent_une_connexion(client):
