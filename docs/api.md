@@ -44,7 +44,7 @@ La **seule** table des droits est `api/roles.py`. Chaque route déclare son doma
 
 | Domaine | Rôles | Routes |
 |---|---|---|
-| ventes | direction, commercial, finance, représentant (**ses ventes seulement**) | `/v1/ventes/ca-mensuel`, `/v1/ventes/clients` |
+| ventes | direction, commercial, finance, représentant (**ses ventes seulement**) | `/v1/ventes/ca-mensuel`, `/v1/ventes/clients`, `/v1/ventes/cycle-mois`, `/v1/ventes/livre-non-facture` |
 | finance | direction, finance | `/v1/finance/compte-de-resultat`, `/v1/finance/creances`, `/v1/finance/tresorerie` |
 | achats | direction, achats, finance | `/v1/achats/mois`, `/v1/achats/fournisseurs`, `/v1/stock/sites`, `/v1/stock/articles`, `/v1/stock/equilibre-briques` |
 | production | direction, production, maintenance | `/v1/production/postes`, `/v1/machines/jour`, `/v1/machines/performance`, `/v1/energie/jour`, `/v1/energie/prix`, `/v1/qualite/chariots`, `/v1/qualite/pertes-poids` |

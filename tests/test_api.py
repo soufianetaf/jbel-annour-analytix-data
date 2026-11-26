@@ -203,8 +203,8 @@ def test_les_routes_testees_sont_celles_publiees(client):
     }
     testees = {f"/{VERSION}{route.path}" for route in _routes_get()}
     assert testees == publiees
-    # 26 routes de données au 26/11/2026 : à relever quand on en ajoute
-    assert len(_routes_protegees(client)) >= 26
+    # 28 routes de données au 26/11/2026 : à relever quand on en ajoute
+    assert len(_routes_protegees(client)) >= 28
 
 
 def test_toutes_les_routes_de_donnees_exigent_une_connexion(client):
@@ -248,6 +248,15 @@ def test_representant_filtre_sur_son_code(client, entrepot):
     sql, parametres = entrepot.requetes[-1]
     assert "representant = %(representant)s" in sql
     assert parametres["representant"] == "R012"
+
+
+def test_representant_filtre_sur_les_livraisons(client, entrepot):
+    entete = _entete(client, "compte.representant")
+    for chemin in ("/v1/ventes/cycle-mois", "/v1/ventes/livre-non-facture"):
+        assert client.get(chemin, headers=entete).status_code == 200, chemin
+        sql, parametres = entrepot.requetes[-1]
+        assert "representant = %(representant)s" in sql, chemin
+        assert parametres["representant"] == "R012", chemin
 
 
 def test_commercial_voit_tous_les_representants(client, entrepot):

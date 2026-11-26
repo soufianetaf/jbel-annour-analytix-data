@@ -151,6 +151,87 @@ models:
       - {name: montant_ttc_signe, data_type: "numeric(28,10)", data_tests: [not_null]}
       - {name: charge_le, data_type: timestamp with time zone, description: Date de la copie depuis Sage X3.}
 
+  - name: fct_livraisons
+    description: >
+      Livraisons clients avec leur facture et le délai entre les deux.
+      Grain : une livraison. Définitions : docs/indicateurs/commandes_livraisons.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [numero_livraison]
+    columns:
+      - {name: numero_livraison, data_type: text}
+      - {name: numero_commande, data_type: text}
+      - {name: societe, data_type: text}
+      - {name: site, data_type: text}
+      - {name: cle_client, data_type: text}
+      - {name: code_client, data_type: text}
+      - {name: representant, data_type: text}
+      - {name: date_expedition, data_type: date}
+      - {name: est_validee, data_type: boolean}
+      - {name: est_facturee, data_type: boolean}
+      - {name: numero_facture, data_type: text}
+      - {name: date_facture, data_type: date}
+      - {name: jours_expedition_facture, data_type: integer, description: "Vide si la facture est datée avant l'expédition."}
+      - {name: jours_sans_facture, data_type: integer, description: "Livraison validée pas encore facturée : jours depuis l'expédition."}
+      - {name: montant_ht, data_type: "numeric(28,2)"}
+      - {name: poids_net, data_type: "numeric(18,3)"}
+      - {name: unite_poids, data_type: text}
+
+  - name: fct_commandes
+    description: >
+      Commandes clients avec leurs livraisons, le délai jusqu'à la première
+      expédition et le reste à livrer. Grain : une commande.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [numero_commande]
+    columns:
+      - {name: numero_commande, data_type: text}
+      - {name: societe, data_type: text}
+      - {name: site, data_type: text}
+      - {name: cle_client, data_type: text}
+      - {name: code_client, data_type: text}
+      - {name: representant, data_type: text}
+      - {name: date_commande, data_type: date}
+      - {name: date_livraison_demandee, data_type: date}
+      - {name: statut_commande, data_type: text}
+      - {name: statut_livraison, data_type: text}
+      - {name: statut_facturation, data_type: text}
+      - {name: est_bloquee, data_type: boolean}
+      - {name: montant_ht, data_type: "numeric(28,2)"}
+      - {name: livraisons, data_type: integer}
+      - {name: premiere_expedition, data_type: date}
+      - {name: derniere_expedition, data_type: date}
+      - {name: jours_commande_expedition, data_type: integer}
+      - {name: montant_livre_ht, data_type: "numeric(28,2)"}
+      - {name: montant_facture_ht, data_type: "numeric(28,2)"}
+      - {name: quantite_commandee, data_type: "numeric(18,3)"}
+      - {name: quantite_livree, data_type: "numeric(18,3)"}
+      - {name: reste_a_livrer, data_type: "numeric(18,3)", description: "Commande ouverte : quantité commandée - livrée."}
+      - {name: soldee_sans_livraison, data_type: boolean, description: "Soldée sans aucune livraison : annulée ou doublon."}
+
+  - name: agg_commercial_mois
+    description: "Cycle commande → expédition → facture, par mois. Grain : un mois."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [mois]
+    columns:
+      - {name: mois, data_type: date}
+      - {name: commandes, data_type: integer}
+      - {name: montant_commande_ht, data_type: "numeric(28,2)"}
+      - {name: jours_moyens_commande_expedition, data_type: "numeric(8,2)"}
+      - {name: commandes_soldees_sans_livraison, data_type: integer}
+      - {name: montant_soldees_sans_livraison, data_type: "numeric(28,2)"}
+      - {name: livraisons, data_type: integer}
+      - {name: montant_livre_ht, data_type: "numeric(28,2)"}
+      - {name: jours_median_expedition_facture, data_type: "numeric(8,1)"}
+      - {name: livraisons_facturees, data_type: integer}
+      - {name: montant_livre_non_facture, data_type: "numeric(28,2)"}
 unit_tests:
   - name: ventes_avoir_negatif_et_pro_forma_exclue
     description: >
@@ -172,3 +253,51 @@ unit_tests:
       rows:
         - {numero_facture: F1, type_document: facture, quantite_signee: 10, montant_ht_signe: 1000, montant_ttc_signe: 1200}
         - {numero_facture: A1, type_document: avoir, quantite_signee: -2, montant_ht_signe: -200, montant_ttc_signe: -240}
+
+  - name: livraison_delai_jusqu_a_la_facture
+    description: >
+      Expédiée le 03/11, facturée le 30/11 : 27 jours. Une facture datée du
+      01/11 pour une expédition du 03/11 (erreur de date) : délai vide.
+      Une livraison sans facture n'a pas de date de facture.
+    model: fct_livraisons
+    given:
+      - input: ref('stg_x3__livraisons')
+        rows:
+          - {numero_livraison: L1, client: C1, date_expedition: "2026-11-03", est_validee: true, est_facturee: true, numero_facture: F1, montant_ht: 1000}
+          - {numero_livraison: L2, client: C1, date_expedition: "2026-11-03", est_validee: true, est_facturee: true, numero_facture: F2, montant_ht: 500}
+          - {numero_livraison: L3, client: C1, date_expedition: "2026-11-03", est_validee: true, est_facturee: false, numero_facture: null, montant_ht: 200}
+      - input: ref('stg_x3__factures')
+        rows:
+          - {numero_facture: F1, date_comptable: "2026-11-30"}
+          - {numero_facture: F2, date_comptable: "2026-11-01"}
+    expect:
+      rows:
+        - {numero_livraison: L1, date_facture: "2026-11-30", jours_expedition_facture: 27}
+        - {numero_livraison: L2, date_facture: "2026-11-01", jours_expedition_facture: null}
+        - {numero_livraison: L3, date_facture: null, jours_expedition_facture: null}
+
+  - name: commande_soldee_sans_livraison_et_reste_a_livrer
+    description: >
+      Une commande soldée sans livraison est signalée ; une commande ouverte
+      de 100 unités dont 60 livrées a un reste à livrer de 40 ; une commande
+      soldée n'a pas de reste à livrer.
+    model: fct_commandes
+    given:
+      - input: ref('stg_x3__commandes')
+        rows:
+          - {numero_commande: A, client: C1, date_commande: "2026-10-01", statut_commande: soldée, statut_livraison: non livrée}
+          - {numero_commande: B, client: C1, date_commande: "2026-10-01", statut_commande: ouverte, statut_livraison: partiellement livrée}
+          - {numero_commande: C, client: C1, date_commande: "2026-10-01", statut_commande: soldée, statut_livraison: livrée}
+      - input: ref('fct_livraisons')
+        rows:
+          - {numero_commande: B, date_expedition: "2026-10-03", montant_ht: 600, est_facturee: false}
+          - {numero_commande: C, date_expedition: "2026-10-01", montant_ht: 300, est_facturee: true}
+      - input: ref('stg_x3__lignes_commande')
+        rows:
+          - {numero_commande: B, quantite_commandee: 100, quantite_livree: 60}
+          - {numero_commande: C, quantite_commandee: 30, quantite_livree: 30}
+    expect:
+      rows:
+        - {numero_commande: A, soldee_sans_livraison: true, livraisons: 0, reste_a_livrer: null, jours_commande_expedition: null}
+        - {numero_commande: B, soldee_sans_livraison: false, livraisons: 1, reste_a_livrer: 40.000, jours_commande_expedition: 2}
+        - {numero_commande: C, soldee_sans_livraison: false, livraisons: 1, reste_a_livrer: null, jours_commande_expedition: 0}

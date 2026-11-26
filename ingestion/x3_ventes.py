@@ -94,5 +94,9 @@ TABLES = (
 )
 
 
+def main(arguments: list[str] | None = None) -> int:
+    return executer(NOM_PIPELINE, TABLES, __doc__.splitlines()[0], arguments)
+
+
 if __name__ == "__main__":
-    sys.exit(executer(NOM_PIPELINE, TABLES, __doc__.splitlines()[0]))
+    sys.exit(main())

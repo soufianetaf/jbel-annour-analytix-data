@@ -20,7 +20,7 @@ $env:DAGSTER_HOME = "$PWD\orchestration\.dagster_home"; uv run dagster job execu
 
 | Étape | Actifs Dagster | Ce qui se passe |
 |---|---|---|
-| 1. Copies | `copie_x3_ventes`, `copie_x3_finance`, `copie_x3_stock`, `copie_x3_achats`, `copie_usine_magasin`, `copie_usine_production`, `copie_usine_machines`, `copie_usine_electricite`, `copie_usine_qualite`, `copie_usine_maintenance`, `copie_usine_rh` | Chaque module `ingestion.*` copie ses tables (81 tables brutes) puis les **rapproche de la source**. Un écart fait échouer la copie |
+| 1. Copies | `copie_x3_ventes`, `copie_x3_finance`, `copie_x3_stock`, `copie_x3_achats`, `copie_x3_commandes`, `copie_usine_magasin`, `copie_usine_production`, `copie_usine_machines`, `copie_usine_electricite`, `copie_usine_qualite`, `copie_usine_maintenance`, `copie_usine_rh` | Chaque module `ingestion.*` copie ses tables (86 tables brutes) puis les **rapproche de la source**. Un écart fait échouer la copie |
 | 2. dbt | `staging/…`, `intermediate/…`, `marts/…`, `snapshots/…` | `dbt build` : modèles, tests, photos quotidiennes, historique de la qualité des données |
 | 3. Contrôles | `rapprochements_metier` | CA, créances, résultat, trésorerie, stock et achats : Sage X3 contre les tables finales |
 

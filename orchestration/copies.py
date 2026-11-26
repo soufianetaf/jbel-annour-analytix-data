@@ -25,6 +25,7 @@ MODULES_COPIE = (
     "x3_finance",
     "x3_stock",
     "x3_achats",
+    "x3_commandes",
     "usine_magasin",
     "usine_production",
     "usine_machines",

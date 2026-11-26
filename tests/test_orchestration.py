@@ -48,6 +48,21 @@ def test_chaque_module_de_copie_est_orchestre():
     assert set(MODULES_COPIE) == modules
 
 
+def test_chaque_copie_se_lance_par_main():
+    """Dagster lance chaque copie par main([]) : un module sans main échouerait au chargement.
+
+    Les modules Sage X3 se lançaient seulement en ligne de commande (executer) :
+    sans ce test, leurs copies n'auraient échoué qu'au premier vrai chargement.
+    """
+    import inspect
+
+    from orchestration.copies import copies
+
+    for copie in copies():
+        assert callable(getattr(copie.module, "main", None)), copie.nom
+        assert "arguments" in inspect.signature(copie.module.main).parameters, copie.nom
+
+
 def test_chaque_source_dbt_brute_a_sa_copie(graphe):
     """Une source dbt raw_… sans copie ne serait jamais rechargée : ses chiffres vieilliraient."""
     orphelines = [

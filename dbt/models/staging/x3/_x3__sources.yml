@@ -61,3 +61,13 @@ sources:
         description: "Lignes de factures fournisseurs (PINVOICED), en liste fermée."
       - name: bpsupplier
         description: "Fiches fournisseurs (BPSUPPLIER), sans banque."
+      - name: sorder
+        description: "Entêtes de commandes clients (SORDER), sans adresse ni contact."
+      - name: sorderq
+        description: "Lignes de commandes clients, quantités (SORDERQ)."
+      - name: sorderp
+        description: "Lignes de commandes clients, prix (SORDERP), sans coût de revient."
+      - name: sdelivery
+        description: "Entêtes de livraisons clients (SDELIVERY), sans chauffeur ni destinataire."
+      - name: sdeliveryd
+        description: "Lignes de livraisons clients (SDELIVERYD)."

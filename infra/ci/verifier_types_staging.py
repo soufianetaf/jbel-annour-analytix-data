@@ -70,6 +70,7 @@ def colonnes_absentes_de_raw(colonnes_raw: dict[tuple[str, str], set[str]]) -> l
         usine_production,
         usine_qualite,
         x3_achats,
+        x3_commandes,
         x3_finance,
         x3_stock,
         x3_ventes,
@@ -77,7 +78,8 @@ def colonnes_absentes_de_raw(colonnes_raw: dict[tuple[str, str], set[str]]) -> l
     from ingestion.x3 import CIBLE_X3
 
     nommage = NamingConvention()
-    groupes = [(m.TABLES, CIBLE_X3) for m in (x3_ventes, x3_finance, x3_stock, x3_achats)]
+    modules_x3 = (x3_ventes, x3_finance, x3_stock, x3_achats, x3_commandes)
+    groupes = [(m.TABLES, CIBLE_X3) for m in modules_x3]
     groupes += [(tables, cible) for _, tables, cible in usine_magasin.COPIES]
     groupes += [(usine_production.TABLES, usine_production.PRODUCTION)]
     groupes += [(tables, cible) for _, tables, cible in usine_machines.COPIES]

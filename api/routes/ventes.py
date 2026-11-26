@@ -91,3 +91,78 @@ def meilleurs_clients(
             "limite": limite,
         },
     )
+
+
+class CycleMois(BaseModel):
+    mois: date
+    livraisons: int
+    montant_livre_ht: float | None
+    livraisons_facturees: int
+    jours_median_expedition_facture: float | None
+    montant_livre_non_facture: float | None
+
+
+class LivraisonNonFacturee(BaseModel):
+    numero_livraison: str
+    code_client: str | None
+    nom_client: str | None
+    date_expedition: date | None
+    jours_sans_facture: int | None
+    montant_ht: float | None
+
+
+@routeur.get(
+    "/cycle-mois",
+    response_model=list[CycleMois],
+    summary="Livraisons du mois, délai jusqu'à la facture, livré non facturé",
+)
+def cycle_mois(
+    utilisateur: Lecteur,
+    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    p: Annotated[Periode, Depends(periode)],
+) -> list[dict]:
+    # Lu dans fct_livraisons (pas agg_commercial_mois) : le représentant
+    # ne doit voir que ses livraisons
+    return entrepot.lire(
+        """
+        SELECT date_trunc('month', date_expedition)::date   AS mois,
+               count(*)                                     AS livraisons,
+               sum(montant_ht)                              AS montant_livre_ht,
+               count(*) FILTER (WHERE est_facturee)         AS livraisons_facturees,
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY jours_expedition_facture)
+                   AS jours_median_expedition_facture,
+               sum(montant_ht) FILTER (WHERE est_validee AND NOT est_facturee)
+                   AS montant_livre_non_facture
+        FROM marts.fct_livraisons
+        WHERE date_expedition BETWEEN %(debut)s AND %(fin)s
+          AND (%(representant)s::text IS NULL OR representant = %(representant)s)
+        GROUP BY 1
+        ORDER BY 1
+        """,
+        {"debut": p.debut, "fin": p.fin, "representant": filtre_representant(utilisateur)},
+    )
+
+
+@routeur.get(
+    "/livre-non-facture",
+    response_model=list[LivraisonNonFacturee],
+    summary="Livraisons validées pas encore facturées, les plus anciennes d'abord",
+)
+def livre_non_facture(
+    utilisateur: Lecteur,
+    entrepot: Annotated[Entrepot, Depends(entrepot_api)],
+    limite: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> list[dict]:
+    return entrepot.lire(
+        """
+        SELECT l.numero_livraison, l.code_client, c.nom_client, l.date_expedition,
+               l.jours_sans_facture, l.montant_ht
+        FROM marts.fct_livraisons AS l
+        LEFT JOIN marts.dim_client AS c ON c.cle_client = l.cle_client
+        WHERE l.est_validee AND NOT l.est_facturee
+          AND (%(representant)s::text IS NULL OR l.representant = %(representant)s)
+        ORDER BY l.jours_sans_facture DESC NULLS LAST, l.montant_ht DESC
+        LIMIT %(limite)s
+        """,
+        {"representant": filtre_representant(utilisateur), "limite": limite},
+    )

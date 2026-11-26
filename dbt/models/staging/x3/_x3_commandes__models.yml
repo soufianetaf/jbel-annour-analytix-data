@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: stg_x3__commandes
+    description: "Entêtes de commandes clients, statuts traduits. Grain : une commande."
+    columns:
+      - name: numero_commande
+        data_tests: [unique, not_null]
+      - name: statut_commande
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ouverte, soldée]
+      - name: statut_livraison
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [non livrée, partiellement livrée, livrée]
+
+  - name: stg_x3__lignes_commande
+    description: "Lignes de commandes clients, quantités. Grain : une ligne × une séquence."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_commande, ligne, sequence]
+
+  - name: stg_x3__prix_commande
+    description: "Prix des lignes de commandes clients. Grain : une ligne × une séquence."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_commande, ligne, sequence]
+
+  - name: stg_x3__livraisons
+    description: "Livraisons clients (bons de livraison). Grain : une livraison."
+    columns:
+      - name: numero_livraison
+        data_tests: [unique, not_null]
+
+  - name: stg_x3__lignes_livraison
+    description: "Lignes de livraisons clients. Grain : une ligne de livraison."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [numero_livraison, ligne]
