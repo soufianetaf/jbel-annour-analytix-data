@@ -5,7 +5,11 @@
   l'application de production.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Production', 'correction': "Corriger le rapport de consommations dans l'application de production."},
+) }}
 
 select id_rapport, jour, production_tonnes, fuel_four, coke_micronise, propane
 from {{ ref('stg_production__consommations') }}

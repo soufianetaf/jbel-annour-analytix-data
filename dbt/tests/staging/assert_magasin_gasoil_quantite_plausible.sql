@@ -9,7 +9,11 @@
   fausseraient la consommation : ce test les liste pour le magasin.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Magasin', 'correction': "Corriger la quantité du bon de gasoil dans l'application Magasin."},
+) }}
 
 select id_bon, numero_bon, quantite_saisie, compteur_km, cree_le
 from {{ ref('stg_magasin__gasoil') }}

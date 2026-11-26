@@ -5,7 +5,11 @@
   indicateurs comptent les statuts, pas les quantités.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Qualité', 'correction': "Corriger la quantité de briques non acceptables dans l'application qualité."},
+) }}
 
 select id_controle, jour, defaut, quantite_non_acceptable
 from {{ ref('fct_controles_qualite') }}

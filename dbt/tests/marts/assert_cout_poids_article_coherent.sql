@@ -5,7 +5,11 @@
   Sage X3 : ils servent à passer des unités vendues aux tonnes.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Gestion des articles', 'correction': "Corriger le poids de l'article brique dans Sage X3 (fiche article, poids unitaire en kg)."},
+) }}
 
 select code_article, designation, type_brique, poids_x3_kg, poids_pese_kg, origine_poids
 from {{ ref('int_cout_revient__poids_briques') }}

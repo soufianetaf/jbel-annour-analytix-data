@@ -7,7 +7,11 @@
   liste les pièces à faire vérifier par la comptabilité.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Comptabilité', 'correction': "Rattacher la pièce au bon exercice dans Sage X3."},
+) }}
 
 select l.type_piece, l.numero_piece, l.date_comptable,
        l.numero_exercice as exercice_saisi, x.numero_exercice as exercice_de_la_date

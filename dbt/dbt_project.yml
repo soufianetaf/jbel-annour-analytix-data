@@ -49,3 +49,16 @@ models:
     # Photos périodiques des états que Sage X3 ne garde pas (stock, créances…)
     snapshots:
       +schema: snapshots
+
+# Qualité des données (docs/indicateurs/qualite_donnees.md) : les lignes en
+# erreur des tests marqués store_failures sont gardées dans ce schéma, une
+# table par test, remplacée à chaque contrôle
+data_tests:
+  analytix:
+    +schema: qualite_donnees
+
+# Historique des résultats de tests : table créée au début, remplie à la fin
+on-run-start:
+  - "{{ creer_historique_qualite() }}"
+on-run-end:
+  - "{{ enregistrer_resultats_tests(results) }}"

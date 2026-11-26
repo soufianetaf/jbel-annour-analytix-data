@@ -9,7 +9,11 @@
   factures. Ce test les liste pour la comptabilité.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Comptabilité fournisseurs', 'correction': "Faire concorder le total de l'en-tête et les lignes de la facture dans Sage X3."},
+) }}
 
 with lignes as (
 

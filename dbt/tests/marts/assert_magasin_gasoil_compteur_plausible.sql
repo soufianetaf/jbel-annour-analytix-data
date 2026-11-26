@@ -8,7 +8,11 @@
   ce test liste les bons concernés pour le magasin.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Magasin', 'correction': "Corriger le kilométrage saisi sur le bon de gasoil dans l'application Magasin."},
+) }}
 
 with bons as (
 

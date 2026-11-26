@@ -46,6 +46,10 @@ models:
                 field: id_demande
               config:
                 severity: warn
+                store_failures: true
+                meta:
+                  service: Magasin
+                  correction: "Rattacher la ligne à sa demande d'achat dans espace_magasin."
 
   - name: stg_espace_magasin__depassements
     description: "Dépassements de budget. Grain : une demande de dépassement."

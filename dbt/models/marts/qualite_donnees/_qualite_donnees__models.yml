@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: agg_qualite_donnees
+    description: >
+      Page « Qualité des données » : dernier résultat de chaque contrôle, service
+      responsable, marche à suivre, évolution. Grain : un contrôle (test dbt).
+      Définitions : docs/indicateurs/qualite_donnees.md
+    columns:
+      - name: test
+        data_tests: [unique, not_null]
+      - name: service
+        description: "Service qui corrige la source ; vide pour un test sans responsable (à compléter)."
+      - name: correction
+        description: "Ce qu'il faut corriger, et où."
+      - name: statut
+        description: "pass, warn, fail ou error."
+      - name: lignes_en_erreur
+        description: "Lignes en erreur au dernier contrôle."
+      - name: lignes_controle_precedent
+      - name: evolution
+        description: "Négatif : des lignes ont été corrigées depuis le contrôle précédent."
+      - name: premiere_erreur_le
+        description: "Premier contrôle où ce test a trouvé des lignes en erreur."
+      - name: table_lignes
+        description: "Table du schéma qualite_donnees qui contient les lignes en erreur."

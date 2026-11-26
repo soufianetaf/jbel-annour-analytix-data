@@ -52,6 +52,10 @@ models:
               # Une autre devise n'est pas une erreur, mais doit être vue
               config:
                 severity: warn
+                store_failures: true
+                meta:
+                  service: Comptabilité clients
+                  correction: "Vérifier la devise de la facture dans Sage X3."
       - name: montant_ht
         description: Montant hors taxes, positif (AMTNOT_0).
         data_tests:
@@ -93,6 +97,10 @@ models:
               # 63 lignes sans représentant au profilage : à suivre, pas bloquant
               config:
                 severity: warn
+                store_failures: true
+                meta:
+                  service: ADV
+                  correction: "Renseigner le représentant de la ligne de facture dans Sage X3."
       - name: quantite
         description: Quantité en unité de vente (QTY_0).
         data_tests:
@@ -124,6 +132,10 @@ models:
               # anomalie à corriger dans X3 par l'ADV, pas bloquante
               config:
                 severity: warn
+                store_failures: true
+                meta:
+                  service: ADV
+                  correction: "Renseigner la raison sociale du client dans Sage X3."
       - name: representant
         description: Représentant principal de la fiche client (REP_0).
 

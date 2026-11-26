@@ -21,6 +21,10 @@ models:
               config:
                 # 20 lignes sans fiche au 25/11/2026 : signalées, pas bloquantes
                 severity: warn
+                store_failures: true
+                meta:
+                  service: Production
+                  correction: "Rattacher la ligne de production à sa fiche de poste dans l'application de production."
 
   - name: stg_production__zones
     description: "Zones de production. Grain : une zone."

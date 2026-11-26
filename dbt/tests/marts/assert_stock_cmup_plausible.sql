@@ -9,7 +9,11 @@
   CMUP corrigés dans Sage X3 ; ce test les liste.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Contrôle de gestion', 'correction': "Revoir le coût moyen (CMUP) de l'article dans Sage X3."},
+) }}
 
 with stock as (
 

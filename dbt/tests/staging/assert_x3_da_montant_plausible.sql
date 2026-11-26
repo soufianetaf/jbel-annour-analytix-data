@@ -8,7 +8,11 @@
   corriger dans Sage X3.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Achats', 'correction': "Vérifier le montant de la demande d'achat dans Sage X3."},
+) }}
 
 select numero_demande, ligne, article, quantite, prix_net, montant_ht
 from {{ ref('stg_x3__lignes_demande_achat') }}

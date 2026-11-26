@@ -114,6 +114,10 @@ models:
                 field: cle_article
               config:
                 severity: warn
+                store_failures: true
+                meta:
+                  service: Achats
+                  correction: "Créer ou corriger dans Sage X3 l'article de la facture fournisseur."
       - {name: code_fournisseur, data_type: text}
       - {name: code_article, data_type: text}
       - {name: numero_commande, data_type: text}

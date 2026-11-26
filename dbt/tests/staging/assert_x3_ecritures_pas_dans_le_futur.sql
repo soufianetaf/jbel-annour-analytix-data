@@ -6,7 +6,11 @@
   probable, à faire vérifier par la comptabilité.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Comptabilité', 'correction': "Corriger la date comptable de l'écriture dans Sage X3."},
+) }}
 
 select type_piece, numero_piece, date_comptable, count(*) as lignes
 from {{ ref('stg_x3__lignes_ecriture') }}

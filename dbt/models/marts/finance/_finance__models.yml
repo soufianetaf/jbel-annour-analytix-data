@@ -36,6 +36,10 @@ models:
               config:
                 # Un tiers client des échéances peut ne pas avoir de fiche client
                 severity: warn
+                store_failures: true
+                meta:
+                  service: Comptabilité clients
+                  correction: "Créer la fiche client du tiers de l'échéance dans Sage X3."
       - {name: compte_collectif, data_type: text, description: "CT, FL, EFA… (SAC_0)."}
       - {name: numero_document_origine, data_type: text}
       - {name: societe, data_type: text}

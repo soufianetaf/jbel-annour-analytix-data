@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: qualite_donnees
+    description: >
+      Historique des contrôles de qualité des données, écrit par dbt à la fin de
+      chaque construction (macro enregistrer_resultats_tests, on-run-end).
+    schema: qualite_donnees
+    tables:
+      - name: resultats_tests
+        description: "Un résultat de test par construction : statut, lignes en erreur, service responsable."

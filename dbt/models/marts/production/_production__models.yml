@@ -17,6 +17,10 @@ models:
             combination_of_columns: [date_poste, shift, equipe, zone]
           config:
             severity: warn
+            store_failures: true
+            meta:
+              service: Production
+              correction: "Supprimer la ligne en double du poste dans l'application de production."
     columns:
       - {name: id_ligne, data_type: bigint}
       - {name: id_fiche, data_type: bigint}

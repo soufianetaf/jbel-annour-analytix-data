@@ -8,7 +8,11 @@
   sous-estimerait la production : ce test le détecterait.
 #}
 
-{{ config(severity='warn') }}
+{{ config(
+    severity='warn',
+    store_failures=true,
+    meta={'service': 'Automatisme', 'correction': "Vérifier la remise à zéro du compteur de l'automate en cours de journée."},
+) }}
 
 with releves as (
 
