@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: stg_electricite__releves
+    description: "Relevés des 13 compteurs électriques réunis. Grain : un relevé d'un compteur."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [compteur, id_releve]
+    columns:
+      - name: cos_phi
+        description: "cos φ ; vide s'il est hors de 0 à 1 (erreur de mesure)."
+
+  - name: stg_production__consommations
+    description: >
+      Consommations saisies en texte dans l'application de production, converties
+      en nombres (jusqu'en octobre 2026). Grain : un rapport.
+    columns:
+      - name: id_rapport
+        data_tests: [unique, not_null]
+
+  - name: stg_four__combustible
+    description: "Relevés de combustible et de cuisson de l'automate du four. Grain : un relevé."

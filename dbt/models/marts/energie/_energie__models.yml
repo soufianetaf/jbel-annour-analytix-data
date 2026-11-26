@@ -1,0 +1,83 @@
+version: 2
+
+models:
+  - name: fct_electricite_jour
+    description: >
+      Électricité par compteur et par jour. Grain : un compteur × un jour.
+      Consommation = valeur « veille » affichée par le compteur le lendemain.
+      Définitions : docs/indicateurs/energie.md
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [compteur, jour]
+    columns:
+      - name: compteur
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [entree, transfo1, transfo2, argile, prepa1, prepa2, extrudeuse, sechoir, empileuse, four, depileuse, compresseur, eclairage]
+      - name: niveau
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["général", machine]
+      - {name: jour, data_type: date, data_tests: [not_null]}
+      - {name: kwh, data_type: "numeric(18,3)", description: "Consommation du jour (connue le lendemain) ; vide si la valeur lue n'est pas plausible."}
+      - {name: kwh_valide, data_type: boolean, description: "Valeur entre 0 et puissance maximale × 24 h (+10 %), au plus 100 000 kWh."}
+      - {name: kwh_brut, data_type: "numeric(24,3)", description: "Valeur lue sur le compteur, même aberrante (pannes de collecte)."}
+      - {name: kwh_heures_pleines, data_type: "numeric(18,3)"}
+      - {name: kwh_heures_pointe, data_type: "numeric(18,3)"}
+      - {name: kwh_heures_creuses, data_type: "numeric(18,3)"}
+      - {name: cos_phi_moyen, data_type: "numeric(6,4)", description: "Moyenne des relevés valides (0 à 1)."}
+      - {name: part_cos_phi_sous_0_8, data_type: "numeric(6,4)", description: "Part des relevés sous 0,8 (seuil des pénalités)."}
+      - {name: releves_cos_phi_invalides, data_type: integer, description: "Relevés au cos φ hors de 0 à 1 (erreurs de mesure)."}
+      - {name: puissance_max, data_type: "numeric(18,3)"}
+      - {name: releves, data_type: integer}
+
+  - name: agg_energie_jour
+    description: >
+      Énergie du site par jour : électricité (transformateurs 1 et 2), tonnes
+      cuites, kWh par tonne, coke par tonne. Grain : un jour.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [jour]
+    columns:
+      - {name: jour, data_type: date}
+      - {name: kwh_site, data_type: "numeric(18,3)", description: "Transformateur 1 + transformateur 2 ; vide si l'un manque ou vaut 0."}
+      - name: electricite_complete
+        data_type: boolean
+        description: "Les deux transformateurs ont une consommation plausible et non nulle ce jour-là."
+        data_tests: [not_null]
+      - {name: kwh_compteurs_machines, data_type: "numeric(18,3)", description: "Somme des compteurs par machine, pour contrôle seulement : ils se recouvrent (la somme dépasse les transformateurs)."}
+      - {name: cos_phi_min_transformateurs, data_type: "numeric(6,4)"}
+      - {name: tonnes_cuites, data_type: "numeric(18,3)"}
+      - {name: kwh_par_tonne, data_type: "numeric(12,3)", description: "Vide si un transformateur manque ce jour-là."}
+      - {name: coke_kg_par_tonne, data_type: "numeric(12,3)", description: "Ratio de cuisson de l'automate du four."}
+      - {name: coke_consomme_tonnes, data_type: "numeric(12,3)"}
+      - {name: coke_livre_tonnes, data_type: "numeric(12,3)"}
+
+unit_tests:
+  - name: electricite_la_valeur_veille_va_au_jour_precedent
+    description: >
+      Le compteur affiche le 25/11 la consommation du 24/11 (19 362 kWh) :
+      elle est rangée au 24/11, pas au 25/11 ; l'index n'est pas utilisé.
+    model: fct_electricite_jour
+    given:
+      - input: ref('stg_electricite__releves')
+        rows:
+          - {compteur: transfo2, niveau: "général", id_releve: 1, releve_le: "2026-11-24 08:00:00", consommation_veille: 18496, index_energie: 7989, cos_phi: 0.9, cos_phi_valide: true, puissance_active: 700}
+          - {compteur: transfo2, niveau: "général", id_releve: 2, releve_le: "2026-11-24 20:00:00", consommation_veille: 18496, index_energie: 17171, cos_phi: 0.7, cos_phi_valide: true, puissance_active: 900}
+          - {compteur: transfo2, niveau: "général", id_releve: 3, releve_le: "2026-11-25 08:00:00", consommation_veille: 19362, index_energie: 500, cos_phi: null, cos_phi_valide: false, puissance_active: 650}
+          - {compteur: four, niveau: machine, id_releve: 1, releve_le: "2026-11-24 08:00:00", consommation_veille: 6000, index_energie: 1, cos_phi: 0.9, cos_phi_valide: true, puissance_active: 400}
+          - {compteur: four, niveau: machine, id_releve: 2, releve_le: "2026-11-25 08:00:00", consommation_veille: -589773, index_energie: 1, cos_phi: 0.9, cos_phi_valide: true, puissance_active: 400}
+    expect:
+      rows:
+        - {compteur: transfo2, jour: "2026-11-24", kwh: 19362, kwh_valide: true, cos_phi_moyen: 0.8, part_cos_phi_sous_0_8: 0.5, releves_cos_phi_invalides: 0, puissance_max: 900}
+        - {compteur: transfo2, jour: "2026-11-25", kwh: null, kwh_valide: false, cos_phi_moyen: null, part_cos_phi_sous_0_8: null, releves_cos_phi_invalides: 1, puissance_max: 650}
+        - {compteur: four, jour: "2026-11-24", kwh: null, kwh_valide: false, cos_phi_moyen: 0.9, part_cos_phi_sous_0_8: 0, releves_cos_phi_invalides: 0, puissance_max: 400}
+        - {compteur: four, jour: "2026-11-25", kwh: null, kwh_valide: false, cos_phi_moyen: 0.9, part_cos_phi_sous_0_8: 0, releves_cos_phi_invalides: 0, puissance_max: 400}

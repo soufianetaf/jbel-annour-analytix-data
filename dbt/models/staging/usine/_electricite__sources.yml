@@ -1,0 +1,27 @@
+version: 2
+
+# 13 compteurs électriques (serveur de l'usine, base electrique_data), copiés
+# par ingestion.usine_electricite. Une table par compteur, même structure.
+
+sources:
+  - name: electricite
+    description: "Compteurs électriques : un relevé environ tous les quarts d'heure."
+    schema: raw_electrique_data
+    loaded_at_field: _charge_le
+    freshness:
+      warn_after: {count: 2, period: hour}
+      error_after: {count: 24, period: hour}
+    tables:
+      - {name: entree_elect, description: "Compteur général d'entrée."}
+      - {name: transfo1_elect, description: "Transformateur 1."}
+      - {name: transfo2_elect, description: "Transformateur 2."}
+      - {name: argile_elect, description: "Préparation de l'argile."}
+      - {name: prepa1_elect, description: "Préparation 1."}
+      - {name: prepa2_elect, description: "Préparation 2."}
+      - {name: extrudeuse_elect, description: "Extrudeuse (moulage)."}
+      - {name: sechoir_elect, description: "Séchoir."}
+      - {name: empileuse_elect, description: "Empileuse."}
+      - {name: four_elect, description: "Four."}
+      - {name: depileuse_elect, description: "Dépileuse."}
+      - {name: compresseur_elect, description: "Compresseur."}
+      - {name: eclirage_elect, description: "Éclairage (orthographe de la source)."}

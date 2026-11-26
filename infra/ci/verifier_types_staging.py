@@ -25,12 +25,15 @@ DOSSIER_STAGING = Path(__file__).resolve().parents[2] / "dbt" / "models" / "stag
 TYPES_ATTENDUS = {
     "texte_x3": {"character varying", "text"},
     "texte": {"character varying", "text"},
+    "nombre_saisi": {"character varying", "text"},
     "date_seule": {"timestamp without time zone", "timestamp with time zone", "date"},
     "date_x3": {"timestamp without time zone", "date"},
     "horodatage_x3": {"timestamp without time zone"},
 }
 MOTIF_SOURCE = re.compile(r"source\('(\w+)', '(\w+)'\)")
-MOTIF_MACRO = re.compile(r"(texte_x3|date_x3|horodatage_x3|texte|date_seule)\('(\w+)'\)")
+MOTIF_MACRO = re.compile(
+    r"(texte_x3|date_x3|horodatage_x3|nombre_saisi|texte|date_seule)\('(\w+)'\)"
+)
 
 
 def incoherences(types: dict[tuple[str, str, str], str]) -> list[str]:
@@ -60,6 +63,7 @@ def colonnes_absentes_de_raw(colonnes_raw: dict[tuple[str, str], set[str]]) -> l
     from dlt.common.normalizers.naming.snake_case import NamingConvention
 
     from ingestion import (
+        usine_electricite,
         usine_machines,
         usine_magasin,
         usine_production,
@@ -75,6 +79,7 @@ def colonnes_absentes_de_raw(colonnes_raw: dict[tuple[str, str], set[str]]) -> l
     groupes += [(tables, cible) for _, tables, cible in usine_magasin.COPIES]
     groupes += [(usine_production.TABLES, usine_production.PRODUCTION)]
     groupes += [(tables, cible) for _, tables, cible in usine_machines.COPIES]
+    groupes += [(usine_electricite.TABLES, usine_electricite.ELECTRICITE)]
     absentes = []
     for tables, cible in groupes:
         for table in tables:
