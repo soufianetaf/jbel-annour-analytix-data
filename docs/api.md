@@ -47,10 +47,10 @@ La **seule** table des droits est `api/roles.py`. Chaque route déclare son doma
 | ventes | direction, commercial, finance, représentant (**ses ventes seulement**) | `/v1/ventes/ca-mensuel`, `/v1/ventes/clients`, `/v1/ventes/cycle-mois`, `/v1/ventes/livre-non-facture` |
 | finance | direction, finance | `/v1/finance/compte-de-resultat`, `/v1/finance/creances`, `/v1/finance/tresorerie` |
 | achats | direction, achats, finance | `/v1/achats/mois`, `/v1/achats/fournisseurs`, `/v1/stock/sites`, `/v1/stock/articles`, `/v1/stock/equilibre-briques` |
-| production | direction, production, maintenance | `/v1/production/postes`, `/v1/machines/jour`, `/v1/machines/performance`, `/v1/energie/jour`, `/v1/energie/prix`, `/v1/qualite/chariots`, `/v1/qualite/pertes-poids` |
-| maintenance | direction, maintenance, production | `/v1/maintenance/zones`, `/v1/maintenance/interventions`, `/v1/maintenance/fiabilite` |
+| production | direction, production, maintenance | `/v1/production/postes`, `/v1/machines/jour`, `/v1/machines/performance`, `/v1/energie/jour`, `/v1/energie/machines`, `/v1/energie/prix`, `/v1/qualite/chariots`, `/v1/qualite/pertes-poids` |
+| maintenance | direction, maintenance, production | `/v1/maintenance/zones`, `/v1/maintenance/interventions`, `/v1/maintenance/fiabilite`, `/v1/maintenance/equipements`, `/v1/maintenance/types-panne` |
 | cout_revient | direction, finance | `/v1/cout-revient/mois`, `/v1/cout-revient/marges` |
-| direction | direction, finance | `/v1/direction/mois` |
+| direction | direction, finance | `/v1/direction/mois`, `/v1/direction/alertes` |
 | rh | direction, rh | `/v1/rh/effectifs`, `/v1/rh/presence` |
 | qualite_donnees | tous, administrateur compris (comptages seulement) | `/v1/qualite-donnees` |
 
@@ -61,6 +61,18 @@ Chaque route lit une table de synthèse de `marts`, déjà rapprochée de sa sou
 - **Ajouter une route** : la déclarer dans un module de `api/routes/` avec `exiger_domaine("…")`, et ajouter le module à `ROUTEURS` dans `api/main.py`. Les tests la retrouvent seuls et vérifient ses droits pour chaque rôle.
 
 Paramètres de période : `debut` et `fin` (AAAA-MM-JJ, inclus), un an par défaut, dix ans au plus.
+
+## Alertes de la direction (`/v1/direction/alertes`)
+
+Seules les alertes qui ont lieu d'être sont renvoyées, de la plus grave à la moins grave (liste vide : rien à signaler). Chacune a un service, un titre, un détail, une valeur et la page de l'interface où agir.
+
+| Alerte | Niveau | Seuil |
+|---|---|---|
+| Automate sans heures (moulage, empileuse, dépileuse) | critique | Aucune heure de marche sur 7 jours |
+| Livré non facturé | information jusqu'à 30 jours, attention au-delà, critique après 45 jours | Ancienneté de la plus vieille livraison validée non facturée (la facturation est mensuelle) |
+| Commandes soldées sans livraison | attention | Au moins une sur 12 mois |
+| cos φ d'un transformateur | attention | tan φ > 0,75 (cos φ < 0,80) sur 30 jours |
+| Qualité des données | information | Au moins une ligne à corriger |
 
 ## Sécurité
 

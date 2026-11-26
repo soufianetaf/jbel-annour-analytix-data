@@ -218,3 +218,44 @@ def performance_machines(_: Lecteur, entrepot: Base, p: Dates):
         """,
         {"debut": p.debut, "fin": p.fin},
     )
+
+
+class ElectriciteMachine(BaseModel):
+    compteur: str
+    kwh: float | None
+    kwh_par_tonne: float | None
+    kwh_par_unite: float | None
+    unite_production: str | None
+    cos_phi_moyen: float | None
+    energie_reactive_excedentaire_kvarh: float | None
+
+
+@routeur.get(
+    "/energie/machines",
+    response_model=list[ElectriciteMachine],
+    summary="Électricité de chaque machine sur la période : kWh, par tonne et par unité",
+)
+def electricite_machines(_: Lecteur, entrepot: Base, p: Dates):
+    # Ratios sur la période : total des kWh / total des tonnes (ou de la production),
+    # sur les seuls jours où les deux sont connus
+    return entrepot.lire(
+        """
+        SELECT compteur,
+               sum(kwh)                                                          AS kwh,
+               sum(kwh) FILTER (WHERE tonnes_cuites_site > 0)
+                   / nullif(sum(tonnes_cuites_site) FILTER (WHERE kwh IS NOT NULL), 0)
+                   AS kwh_par_tonne,
+               sum(kwh) FILTER (WHERE production_machine > 0)
+                   / nullif(sum(production_machine) FILTER (WHERE kwh IS NOT NULL), 0)
+                   AS kwh_par_unite,
+               max(unite_production)                       AS unite_production,
+               avg(cos_phi_moyen)                                                AS cos_phi_moyen,
+               sum(energie_reactive_excedentaire_kvarh)
+                   AS energie_reactive_excedentaire_kvarh
+        FROM marts.agg_electricite_machine_jour
+        WHERE jour BETWEEN %(debut)s AND %(fin)s
+        GROUP BY compteur
+        ORDER BY kwh_par_tonne DESC NULLS LAST
+        """,
+        {"debut": p.debut, "fin": p.fin},
+    )
