@@ -15,6 +15,13 @@
   sont négatifs ou en millions, les mêmes jours sur tous les compteurs
   (pannes de la collecte) : kwh est alors vide, kwh_brut garde la valeur lue.
 
+  Collecte arrêtée : certains jours, l'automate envoie 0 partout, puissance
+  comprise (fin septembre - octobre 2026). Un jour où les compteurs généraux
+  du site (entrée, transformateurs) n'ont aucune puissance n'est pas mesuré :
+  kwh est vide pour tous les compteurs, pas 0. De même, 0 kWh pour un
+  compteur dont la puissance a dépassé 0 dans la journée n'est pas une mesure.
+  Une machine vraiment à l'arrêt (puissance nulle, site alimenté) garde 0.
+
   cos φ : moyenne des relevés valides du jour (entre 0 et 1) ; part des
   relevés sous 0,8 (seuil des pénalités) ; nombre de relevés invalides.
   Puissance maximale du jour : pic de puissance active.
@@ -60,6 +67,17 @@ mesures as (
 
 ),
 
+collecte as (
+
+    -- Le site n'est jamais sans courant : sans puissance aux compteurs généraux, la collecte est arrêtée
+    select
+        jour,
+        coalesce(max(puissance_max) filter (where niveau = 'général'), 0) > 0  as collecte_active
+    from mesures
+    group by jour
+
+),
+
 controle as (
 
     select
@@ -71,11 +89,15 @@ controle as (
         c.kwh is not null
             and c.kwh >= 0
             and c.kwh <= m.puissance_max * 24 * 1.1
-            and c.kwh <= 100000                                 as kwh_valide
+            and c.kwh <= 100000
+            and coalesce(k.collecte_active, false)
+            and not (c.kwh = 0 and m.puissance_max > 0)          as kwh_valide
     from mesures as m
     left join consommation as c
         on c.compteur = m.compteur
        and c.jour = m.jour
+    left join collecte as k
+        on k.jour = m.jour
 
 )
 

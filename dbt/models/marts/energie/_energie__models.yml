@@ -86,6 +86,34 @@ models:
       - {name: cos_phi_moyen, data_type: "numeric(6,4)"}
       - {name: energie_reactive_excedentaire_kvarh, data_type: "numeric(18,3)"}
 
+  - name: agg_electricite_compteur_mois
+    description: >
+      Électricité de chaque compteur par mois (éclairage, compresseur, séchoir…) :
+      kWh mesurés, jours mesurés et moyenne par jour mesuré. Un jour sans mesure
+      valide n'est pas compté comme 0. Grain : un compteur × un mois.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [compteur, mois]
+    columns:
+      - {name: compteur, data_type: text}
+      - {name: niveau, data_type: text, description: "général (entrée, transformateurs) ou machine."}
+      - {name: mois, data_type: date}
+      - {name: kwh_mesures, data_type: "numeric(18,3)", description: "Somme des kWh valides du mois."}
+      - name: jours_mesures
+        data_type: integer
+        data_tests:
+          - not_null
+      - {name: jours_mois, data_type: integer, description: "Jours du mois ; jours écoulés pour le mois en cours."}
+      - name: couverture
+        data_type: "numeric(6,4)"
+        description: "jours_mesures / jours_mois."
+        data_tests:
+          - dbt_utils.accepted_range: {min_value: 0, max_value: 1}
+      - {name: kwh_par_jour, data_type: "numeric(18,3)", description: "kWh mesurés / jours mesurés."}
+      - {name: kwh_mois_estime, data_type: "numeric(18,3)", description: "kWh par jour × jours du mois, si au moins 80 % des jours sont mesurés ; sinon vide."}
+
   - name: fct_combustibles_jour
     description: >
       Combustibles et électricité par jour : automates et rapport saisi côte à

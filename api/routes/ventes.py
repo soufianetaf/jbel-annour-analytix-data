@@ -166,3 +166,46 @@ def livre_non_facture(
         """,
         {"representant": filtre_representant(utilisateur), "limite": limite},
     )
+
+
+class ResumeLivreNonFacture(BaseModel):
+    livraisons: int
+    montant_ht: float
+    plus_ancienne_jours: int | None
+    livraisons_plus_15_jours: int
+    montant_plus_15_jours: float
+
+
+@routeur.get(
+    "/livre-non-facture/resume",
+    response_model=ResumeLivreNonFacture,
+    summary="Totaux du livré non facturé : nombre, montant, ancienneté (toutes les livraisons)",
+)
+def resume_livre_non_facture(
+    utilisateur: Lecteur,
+    entrepot: Annotated[Entrepot, Depends(entrepot_lecteur)],
+) -> dict:
+    # La liste /livre-non-facture est limitée (500 au plus) : les totaux se calculent ici,
+    # sur toutes les livraisons, avec le même filtre du représentant.
+    lignes = entrepot.lire(
+        """
+        SELECT count(*)                                        AS livraisons,
+               coalesce(sum(montant_ht), 0)                    AS montant_ht,
+               max(jours_sans_facture)                         AS plus_ancienne_jours,
+               count(*) FILTER (WHERE jours_sans_facture > 15) AS livraisons_plus_15_jours,
+               coalesce(sum(montant_ht) FILTER (WHERE jours_sans_facture > 15), 0)
+                   AS montant_plus_15_jours
+        FROM marts.fct_livraisons
+        WHERE est_validee AND NOT est_facturee
+          AND (%(representant)s::text IS NULL OR representant = %(representant)s)
+        """,
+        {"representant": filtre_representant(utilisateur)},
+    )
+    vide = {
+        "livraisons": 0,
+        "montant_ht": 0.0,
+        "plus_ancienne_jours": None,
+        "livraisons_plus_15_jours": 0,
+        "montant_plus_15_jours": 0.0,
+    }
+    return lignes[0] if lignes else vide

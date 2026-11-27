@@ -99,6 +99,9 @@ Rapport saisi : le **dernier rapport du jour** est retenu (69 jours en ont plusi
 6. **Prix de l'électricité : 0,94 MAD le kWh** sur 12 mois (10,6 M MAD de factures pour 11,3 M kWh estimés).
 7. **Électricité par unité** (médianes) : four 6,9 kWh par tonne cuite ; extrudeuse 4,4 kWh par étagère moulée ; empileuse 6,5 kWh par wagon. Rapportés aux tonnes du site : argile 12,5 kWh par tonne, séchoir 10,5, four 6,9.
 8. **cos φ pondéré par l'énergie** : transformateur 1 à 0,86 (tan φ 0,59), transformateur 2 à 0,92 (tan φ 0,43). L'énergie réactive excédentaire vient presque toute du **transformateur 1** (67 000 kvarh sur un an, contre 1 000). Les machines les plus en cause : prépa 2 (tan φ 1,27) et extrudeuse (1,38). Une batterie de condensateurs sur ces départs serait à étudier.
+10. **Collecte arrêtée (27/11/2026)** : de fin septembre à fin octobre 2026, l'automate envoie 0 partout, puissance comprise. Ces jours étaient comptés comme « 0 kWh consommé » ; ils sont désormais **non mesurés** (kwh vide) : un jour où les compteurs généraux du site n'ont aucune puissance, ou un 0 kWh pour un compteur dont la puissance a dépassé 0. Octobre 2026 n'a presque aucun jour mesuré : sa consommation est inconnue, pas nulle.
+11. **Par compteur et par mois** (`marts.agg_electricite_compteur_mois`, API `/v1/energie/compteurs-mois`) : kWh mesurés, jours mesurés, kWh par jour mesuré, et kWh du mois estimé seulement si 80 % des jours sont mesurés. **Éclairage : 230 à 270 kWh par jour, environ 7 200 kWh par mois** les mois bien relevés (7 598 kWh en juillet 2026). Ses relevés sont souvent incomplets (14 jours sur 31 en août) et aberrants en novembre (puissance constante de 766 kW).
+
 9. Combustibles saisis (médianes par tonne) : **coke micronisé 20 kg**, fuel du four 0,0045 par tonne (4,5 kg si le fuel est saisi en tonnes), propane 0,005 par tonne (unités à confirmer). Charbon et grignons presque jamais saisis (« . »).
 
 ## Points à valider

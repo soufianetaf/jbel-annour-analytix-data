@@ -259,3 +259,36 @@ def electricite_machines(_: Lecteur, entrepot: Base, p: Dates):
         """,
         {"debut": p.debut, "fin": p.fin},
     )
+
+
+class CompteurMois(BaseModel):
+    mois: date
+    compteur: str
+    kwh_mesures: float | None
+    jours_mesures: int
+    jours_mois: int
+    couverture: float | None
+    kwh_par_jour: float | None
+    kwh_mois_estime: float | None
+
+
+@routeur.get(
+    "/energie/compteurs-mois",
+    response_model=list[CompteurMois],
+    summary="Électricité de chaque compteur machine par mois (éclairage compris), jours mesurés",
+)
+def compteurs_mois(_: Lecteur, entrepot: Base, p: Dates):
+    # Compteurs des machines seulement (éclairage et compresseur compris) : les
+    # compteurs généraux (entrée, transformateurs) les contiennent déjà, les
+    # additionner compterait deux fois la même énergie
+    return entrepot.lire(
+        """
+        SELECT mois, compteur, kwh_mesures, jours_mesures, jours_mois, couverture,
+               kwh_par_jour, kwh_mois_estime
+        FROM marts.agg_electricite_compteur_mois
+        WHERE niveau = 'machine'
+          AND mois BETWEEN date_trunc('month', %(debut)s::date) AND %(fin)s
+        ORDER BY mois, compteur
+        """,
+        {"debut": p.debut, "fin": p.fin},
+    )

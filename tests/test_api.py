@@ -117,6 +117,43 @@ def test_sante_sans_connexion(client):
     assert reponse.json()["api"] == "ok"
 
 
+def test_sante_donne_le_dernier_chargement():
+    """L'heure renvoyée est la copie la moins récente, lue hors des tables à sécurité par ligne."""
+    from api.routes.sante import SQL_DERNIER_CHARGEMENT, sante
+
+    class EntrepotChargement:
+        def __init__(self, lignes):
+            self.lignes, self.sql = lignes, []
+
+        def lire(self, sql, parametres=None, perimetre=""):
+            self.sql.append(sql)
+            return self.lignes
+
+    heure = datetime(2026, 11, 27, 14, 0, tzinfo=UTC)
+    faux = EntrepotChargement([{"dernier_chargement": heure}])
+    reponse = sante(faux)
+    assert reponse.entrepot == "ok"
+    assert reponse.dernier_chargement == heure
+    assert faux.sql == [SQL_DERNIER_CHARGEMENT]
+    for protegee in ("fct_ventes", "fct_livraisons", "fct_commandes"):
+        assert protegee not in SQL_DERNIER_CHARGEMENT
+    assert "min(dernier)" in SQL_DERNIER_CHARGEMENT
+
+    assert sante(EntrepotChargement([])).dernier_chargement is None
+
+
+def test_sante_entrepot_indisponible():
+    from api.routes.sante import sante
+
+    class EntrepotEnPanne:
+        def lire(self, sql, parametres=None, perimetre=""):
+            raise ConnectionError("injoignable")
+
+    reponse = sante(EntrepotEnPanne())
+    assert reponse.entrepot == "indisponible"
+    assert reponse.dernier_chargement is None
+
+
 def test_connexion_avec_le_bon_mot_de_passe(client):
     reponse = _jeton(client, "compte.direction")
     assert reponse.status_code == 200
@@ -206,7 +243,7 @@ def test_les_routes_testees_sont_celles_publiees(client):
     testees = {f"/{VERSION}{route.path}" for route in _routes_get()}
     assert testees == publiees
     # 32 routes de données au 26/11/2026 : à relever quand on en ajoute
-    assert len(_routes_protegees(client)) >= 32
+    assert len(_routes_protegees(client)) >= 34
 
 
 def test_toutes_les_routes_de_donnees_exigent_une_connexion(client):
@@ -254,7 +291,11 @@ def test_representant_filtre_sur_son_code(client, entrepot):
 
 def test_representant_filtre_sur_les_livraisons(client, entrepot):
     entete = _entete(client, "compte.representant")
-    for chemin in ("/v1/ventes/cycle-mois", "/v1/ventes/livre-non-facture"):
+    for chemin in (
+        "/v1/ventes/cycle-mois",
+        "/v1/ventes/livre-non-facture",
+        "/v1/ventes/livre-non-facture/resume",
+    ):
         assert client.get(chemin, headers=entete).status_code == 200, chemin
         sql, parametres = entrepot.requetes[-1]
         assert "representant = %(representant)s" in sql, chemin

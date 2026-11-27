@@ -38,16 +38,26 @@ Autres actions : `mot-de-passe IDENTIFIANT`, `desactiver IDENTIFIANT`, `activer 
 
 Même réponse (« Identifiant ou mot de passe incorrect ») si l'identifiant n'existe pas, si le mot de passe est faux ou si le compte est désactivé : on ne devine pas quels comptes existent.
 
+## État de l'API (`/v1/sante`)
+
+Seule route sans connexion. Elle ne renvoie aucune donnée métier :
+
+```json
+{"api": "ok", "entrepot": "ok", "dernier_chargement": "2026-11-27T14:00:00Z"}
+```
+
+`dernier_chargement` est l'heure de la copie **la moins récente** parmi Sage X3 (écritures, stock) et l'usine (production, automates, magasin) : toutes les données affichées sont au moins aussi fraîches. L'interface l'affiche sous le titre de chaque page, en orange au-delà de 4 heures. Les tables à sécurité par ligne (ventes, livraisons, commandes) ne servent pas au calcul : sans utilisateur, elles ne montrent aucune ligne. `entrepot: "indisponible"` et pas d'heure si l'entrepôt ne répond pas.
+
 ## Droits par rôle
 
 La **seule** table des droits est `api/roles.py`. Chaque route déclare son domaine ; un rôle absent du domaine reçoit 403. Un test vérifie toute la matrice, rôle par rôle et route par route.
 
 | Domaine | Rôles | Routes |
 |---|---|---|
-| ventes | direction, commercial, finance, représentant (**ses ventes seulement**) | `/v1/ventes/ca-mensuel`, `/v1/ventes/clients`, `/v1/ventes/cycle-mois`, `/v1/ventes/livre-non-facture` |
+| ventes | direction, commercial, finance, représentant (**ses ventes seulement**) | `/v1/ventes/ca-mensuel`, `/v1/ventes/clients`, `/v1/ventes/cycle-mois`, `/v1/ventes/livre-non-facture`, `/v1/ventes/livre-non-facture/resume` |
 | finance | direction, finance | `/v1/finance/compte-de-resultat`, `/v1/finance/creances`, `/v1/finance/tresorerie` |
 | achats | direction, achats, finance | `/v1/achats/mois`, `/v1/achats/fournisseurs`, `/v1/stock/sites`, `/v1/stock/articles`, `/v1/stock/equilibre-briques` |
-| production | direction, production, maintenance | `/v1/production/postes`, `/v1/machines/jour`, `/v1/machines/performance`, `/v1/energie/jour`, `/v1/energie/machines`, `/v1/energie/prix`, `/v1/qualite/chariots`, `/v1/qualite/pertes-poids` |
+| production | direction, production, maintenance | `/v1/production/postes`, `/v1/machines/jour`, `/v1/machines/performance`, `/v1/energie/jour`, `/v1/energie/machines`, `/v1/energie/compteurs-mois`, `/v1/energie/prix`, `/v1/qualite/chariots`, `/v1/qualite/pertes-poids` |
 | maintenance | direction, maintenance, production | `/v1/maintenance/zones`, `/v1/maintenance/interventions`, `/v1/maintenance/fiabilite`, `/v1/maintenance/equipements`, `/v1/maintenance/types-panne` |
 | cout_revient | direction, finance | `/v1/cout-revient/mois`, `/v1/cout-revient/marges` |
 | direction | direction, finance | `/v1/direction/mois`, `/v1/direction/alertes` |

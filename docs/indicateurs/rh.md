@@ -48,7 +48,8 @@ Le jour est le jour calendaire : un poste de nuit (23h-7h) compte sur deux jours
 2. **La pointeuse n'est déployée que depuis septembre 2026** : 1 % à 3 % des inscrits pointent d'avril à juillet, 21 % en septembre, **47 % en octobre** (262 personnes par jour ouvré). Le taux de présence mesure donc encore le **déploiement des pointeuses**, pas l'absentéisme. À ne pas présenter comme un taux d'absence.
 3. Octobre, jours ouvrés : de 34 % (direction) à 85 % (amélioration continue) de présence mesurée ; **10 h sur site en moyenne**, 11 h à la production, à la logistique et à la TPM. 13 % à 32 % des présents n'ont qu'un pointage (entrée ou sortie oubliée).
 4. **Embauches** : 207 en 2025, 124 en 2023 ; 44 sur les 12 derniers mois. Les dates d'embauche de la pointeuse sont inutilisables (555 sur 558 en 1970) : celles de l'application RH sont retenues.
-5. **Recrutement** : 292 candidatures, presque toutes en novembre 2026 (142 chauffeurs de camion, 127 consultants RPA).
+5. **Le pointage s'est presque arrêté le 30/10/2026** (constat du 27/11/2026) : de près de 300 personnes par jour ouvré à une cinquantaine. Sur le serveur de l'usine, `att_punches` (base `pointage`) passe de 451 personnes en octobre à 72 en novembre, le résumé journalier `att_day_summary` de 61 à 15 ; aucune autre base du serveur ne contient de pointages (`pointage_1`, `pointage_2`, `wdms` sont presque vides). Les pointages de novembre ne sont donc pas dans ce serveur : terminaux non synchronisés, ou autre base. Le contrôle `assert_rh_pointage_continu` le signale au service RH, et l'interface affiche « taux de présence inconnu » au lieu d'un faux taux.
+6. **Recrutement** : 292 candidatures, presque toutes en novembre 2026 (142 chauffeurs de camion, 127 consultants RPA).
 
 ## Points à valider
 
